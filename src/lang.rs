@@ -1,7 +1,7 @@
 use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use string_interner::{DefaultSymbol as Symbol, StringInterner};
-use std::collections::{HashSet, HashMap};
 
 thread_local! {
   pub static INTERNER: RefCell<StringInterner> = RefCell::new(StringInterner::default());
@@ -23,7 +23,7 @@ pub fn v(t: impl Into<String>) -> Var {
   Var::new(t)
 }
 
-impl fmt::Debug for Var {
+impl fmt::Display for Var {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     INTERNER.with(|interner| {
       let interner = interner.borrow();
@@ -33,7 +33,13 @@ impl fmt::Debug for Var {
   }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+impl fmt::Debug for Var {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "Var({})", self)
+  }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BinOp {
   Add,
   Mul,
@@ -47,12 +53,12 @@ impl BinOp {
       BinOp::Add => BinOp::Sub,
       BinOp::Sub => BinOp::Add,
       BinOp::Mul => BinOp::Div,
-      BinOp::Div => BinOp::Mul
-    }    
+      BinOp::Div => BinOp::Mul,
+    }
   }
 }
 
-impl fmt::Debug for BinOp {
+impl fmt::Display for BinOp {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
       BinOp::Add => write!(f, "+"),
@@ -92,6 +98,10 @@ impl BoundVars {
   }
 
   pub fn bound_vars(&self) -> HashSet<Var> {
-    self.0.iter().filter_map(|(k, v)| (*v > 0).then(|| *k)).collect()
+    self
+      .0
+      .iter()
+      .filter_map(|(k, v)| (*v > 0).then(|| *k))
+      .collect()
   }
 }

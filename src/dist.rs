@@ -1,4 +1,5 @@
 use crate::lang::*;
+use num::BigRational;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -10,10 +11,26 @@ pub enum PredOp {
   Le,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+impl fmt::Display for PredOp {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    use PredOp::*;
+    write!(
+      f,
+      "{}",
+      match self {
+        Eq => "=",
+        Leq => "≤",
+        Neq => "≠",
+        Le => "<",
+      }
+    )
+  }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Dist {
   DVar(Var),
-  Rat(isize, usize),
+  Rat(BigRational),
   E,
   Pi,
   Neg(Box<Dist>),
@@ -38,7 +55,7 @@ pub trait Visitor {
     self.super_visit_var(v)
   }
 
-  fn super_visit_var(&mut self, v: Var) {}
+  fn super_visit_var(&mut self, _v: Var) {}
 
   fn visit_dvar(&mut self, v: Var) {
     self.super_visit_dvar(v);
@@ -48,17 +65,17 @@ pub trait Visitor {
     self.visit_var(v);
   }
 
-  fn visit_rat(&mut self, num: isize, denom: usize) {
-    self.super_visit_rat(num, denom)
+  fn visit_rat(&mut self, rat: &BigRational) {
+    self.super_visit_rat(rat)
   }
 
-  fn super_visit_rat(&mut self, num: isize, denom: usize) {}
+  fn super_visit_rat(&mut self, _rat: &BigRational) {}
 
   fn visit_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) {
     self.super_visit_bin(d1, d2, op)
   }
 
-  fn super_visit_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) {
+  fn super_visit_bin(&mut self, d1: &Dist, d2: &Dist, _op: BinOp) {
     self.visit(d1);
     self.visit(d2);
   }
@@ -152,10 +169,19 @@ pub trait Visitor {
 
   fn super_visit_lebesgue(&mut self, x: Var) {}
 
+  fn visit_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) {
+    self.super_visit_pred(d1, d2, op);
+  }
+
+  fn super_visit_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) {
+    self.visit(d1);
+    self.visit(d2);
+  }
+
   fn visit(&mut self, d: &Dist) {
     match d {
       Dist::DVar(v) => self.visit_dvar(*v),
-      Dist::Rat(num, denom) => self.visit_rat(*num, *denom),
+      Dist::Rat(rat) => self.visit_rat(rat),
       Dist::Bin(box d1, box d2, op) => self.visit_bin(d1, d2, *op),
       Dist::Integral(x, box d) => self.visit_integral(*x, d),
       Dist::Func(x, box d) => self.visit_func(*x, d),
@@ -167,7 +193,8 @@ pub trait Visitor {
       Dist::Proj(d, x) => self.visit_proj(d, *x),
       Dist::Record(h) => self.visit_record(h),
       Dist::Lebesgue(x) => self.visit_lebesgue(*x),
-      _ => todo!("{:?}", d),
+      Dist::Pred(box d1, box d2, op) => self.visit_pred(d1, d2, *op),
+      _ => todo!("{}", d),
     }
   }
 }
@@ -189,12 +216,12 @@ pub trait Folder {
     Dist::DVar(self.fold_var(v))
   }
 
-  fn fold_rat(&mut self, num: isize, denom: usize) -> Dist {
-    self.super_fold_rat(num, denom)
+  fn fold_rat(&mut self, rat: &BigRational) -> Dist {
+    self.super_fold_rat(rat)
   }
 
-  fn super_fold_rat(&mut self, num: isize, denom: usize) -> Dist {
-    Dist::Rat(num, denom)
+  fn super_fold_rat(&mut self, rat: &BigRational) -> Dist {
+    Dist::Rat(rat.clone())
   }
 
   fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
@@ -274,7 +301,11 @@ pub trait Folder {
   }
 
   fn super_fold_record(&mut self, h: &HashMap<Var, Dist>) -> Dist {
-    Dist::Record(h.iter().map(|(k, v)| (self.fold_var(*k), self.fold(v))).collect())
+    Dist::Record(
+      h.iter()
+        .map(|(k, v)| (self.fold_var(*k), self.fold(v)))
+        .collect(),
+    )
   }
 
   fn fold_lebesgue(&mut self, x: Var) -> Dist {
@@ -285,10 +316,18 @@ pub trait Folder {
     Dist::Lebesgue(self.fold_var(x))
   }
 
+  fn fold_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) -> Dist {
+    self.super_fold_pred(d1, d2, op)
+  }
+
+  fn super_fold_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) -> Dist {
+    Dist::Pred(box self.fold(d1), box self.fold(d2), op)
+  }
+
   fn fold(&mut self, d: &Dist) -> Dist {
     match d {
       Dist::DVar(v) => self.fold_dvar(*v),
-      Dist::Rat(num, denom) => self.fold_rat(*num, *denom),
+      Dist::Rat(rat) => self.fold_rat(rat),
       Dist::Bin(box d1, box d2, op) => self.fold_bin(d1, d2, *op),
       Dist::Integral(x, box d) => self.fold_integral(*x, d),
       Dist::Func(x, box d) => self.fold_func(*x, d),
@@ -300,7 +339,8 @@ pub trait Folder {
       Dist::Proj(d, x) => self.fold_proj(d, *x),
       Dist::Record(h) => self.fold_record(h),
       Dist::Lebesgue(x) => self.fold_lebesgue(*x),
-      _ => todo!("{:?}", d),
+      Dist::Pred(box d1, box d2, op) => self.fold_pred(d1, d2, *op),
+      _ => todo!("{}", d),
     }
   }
 }
@@ -347,11 +387,11 @@ impl Folder for Subst {
     if v == self.src {
       match self.dst {
         Dist::DVar(v2) => v2,
-        _ => panic!("subst non-var {:?} into {:?}", self.dst, v)
+        _ => panic!("subst non-var {} into {}", self.dst, v),
       }
     } else {
       v
-    }   
+    }
   }
 
   fn fold_dvar(&mut self, v: Var) -> Dist {
@@ -366,7 +406,7 @@ impl Folder for Subst {
     if x == self.src {
       Dist::Func(x, box d.clone())
     } else if self.fv.contains(&x) {
-      let xp = v(format!("{:?}'", x));
+      let xp = v(format!("{}'", x));
       self.super_fold_func(xp, &d.subst(x, Dist::DVar(xp)))
     } else {
       self.super_fold_func(x, d)
@@ -377,18 +417,18 @@ impl Folder for Subst {
     if x == self.src {
       Dist::Distr(x, box d.clone())
     } else if self.fv.contains(&x) {
-      let xp = v(format!("{:?}'", x));
+      let xp = v(format!("{}'", x));
       self.super_fold_distr(xp, &d.subst(x, Dist::DVar(xp)))
     } else {
       self.super_fold_distr(x, d)
     }
   }
-  
+
   fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
     if x == self.src {
       Dist::Integral(x, box d.clone())
     } else if self.fv.contains(&x) {
-      let xp = v(format!("{:?}'", x));
+      let xp = v(format!("{}'", x));
       self.super_fold_integral(xp, &d.subst(x, Dist::DVar(xp)))
     } else {
       self.super_fold_integral(x, d)
@@ -460,44 +500,45 @@ impl Dist {
   // }
 }
 
-impl fmt::Debug for Dist {
+impl fmt::Display for Dist {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
       Dist::DVar(v) => v.fmt(f),
-      Dist::Rat(num, denom) => write!(f, "{}", (*num as f64) / (*denom as f64)),
-      Dist::Func(var, d) => write!(f, "(λ{:?}. {:?})", var, d),
-      Dist::Distr(var, d) => write!(f, "(Λ{:?}. {:?})", var, d),
-      Dist::Delta(d, var) => write!(f, "δ({:?})⟦{:?}⟧", d, var),
-      Dist::Pdf(d, var) => write!(f, "{:?}⟦{:?}⟧", d, var),
-      Dist::Integral(var, d) => write!(f, "(∫d{:?} {:?})", var, d),
+      Dist::Rat(rat) => write!(f, "{}", rat),
+      Dist::Func(var, d) => write!(f, "(λ{}. {})", var, d),
+      Dist::Distr(var, d) => write!(f, "(Λ{}. {})", var, d),
+      Dist::Delta(d, var) => write!(f, "δ({})⟦{}⟧", d, var),
+      Dist::Pdf(d, var) => write!(f, "{}⟦{}⟧", d, var),
+      Dist::Integral(var, d) => write!(f, "(∫d{} {})", var, d),
       Dist::Bin(d1, d2, op) => {
-        write!(f, "{:?} {:?} {:?}", d1, op, d2)
+        write!(f, "{} {} {}", d1, op, d2)
       }
-      Dist::App(d1, d2) => write!(f, "{:?}({:?})", d1, d2),
+      Dist::App(d1, d2) => write!(f, "{}({})", d1, d2),
       Dist::Tuple(ds) => {
         write!(f, "(")?;
         for d in ds.iter().take(ds.len() - 1) {
-          write!(f, "{:?}, ", d)?;
+          write!(f, "{}, ", d)?;
         }
         if ds.len() > 0 {
-          write!(f, "{:?}", ds.last().unwrap())?;
+          write!(f, "{}", ds.last().unwrap())?;
         }
         write!(f, ")")
       }
-      Dist::Proj(d, x) => write!(f, "{:?}.{:?}", d, x),
+      Dist::Proj(d, x) => write!(f, "{}.{}", d, x),
       Dist::Record(h) => {
         write!(f, "{{")?;
         let kvs = h.iter().collect::<Vec<_>>();
         if kvs.len() > 0 {
           for (k, v) in kvs.iter().take(kvs.len() - 1) {
-            write!(f, "{:?}: {:?}, ", k, v)?;
+            write!(f, "{}: {}, ", k, v)?;
           }
           let (k, v) = kvs.last().unwrap();
-          write!(f, "{:?}: {:?})", k, v)?;
+          write!(f, "{}: {})", k, v)?;
         }
         write!(f, "}}")
       }
-      Dist::Lebesgue(x) => write!(f, "λ⟦{:?}⟧", x),
+      Dist::Lebesgue(x) => write!(f, "λ⟦{}⟧", x),
+      Dist::Pred(d1, d2, op) => write!(f, "[{} {} {}]", d1, op, d2),
       _ => todo!(),
     }
   }

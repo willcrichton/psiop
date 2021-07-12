@@ -1,8 +1,10 @@
 #![feature(box_syntax, box_patterns)]
+#![allow(dead_code)]
 
 mod dist;
 mod infer;
 mod lang;
+mod parse;
 mod simplify;
 
 use dist::Dist;
@@ -21,20 +23,15 @@ fn main() {
 
   let mut state = HashMap::new();
 
-  #[rustfmt::skip]
-  state.insert(v("uniform"), {
-    use Dist::*;
-    let (t, x) = (v("t"), v("x"));
-    let (a, b) = (Proj(box DVar(t), v("0")), Proj(box DVar(t), v("1")));
-    Func(t, box Distr(x, box Dist::bin_many(vec![
-      Bin(box Rat(1, 1), box Bin(box b, box a, BinOp::Sub), BinOp::Div),
-      Lebesgue(x)
-    ], BinOp::Mul)))
-  });
+  state.insert(
+    v("uniform"),
+    Dist::parse("λt. Λx. 1 / (t.1 - t.0) * [t.0 ≤ x] * [x ≤ t.1] * λ⟦x⟧")
+      .unwrap(),
+  );
 
   let d = Dist::App(box e.infer(), box Dist::Record(state));
-  println!("initial: {:?}", d);
+  println!("initial: {}", d);
 
   let d2 = d.simplify();
-  println!("simplified: {:?}", d2);
+  println!("simplified: {}", d2);
 }

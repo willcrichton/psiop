@@ -43,7 +43,7 @@ struct DeltaSubst {
 
 impl Folder for DeltaSubst {
   fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
-    let xp = v(format!("{:?}'", x));
+    let xp = v(format!("{}'", x));
     let mut int_vars = self.int_vars.clone();
     int_vars.bind(xp);
     let mut finder = FindConstDelta {
@@ -56,9 +56,9 @@ impl Folder for DeltaSubst {
 
     match finder.val {
       Some(d2) => {
-        println!("  {:?}\nfolded under {:?} to\n  {:?}\n", dp, xp, d_fold);
+        println!("  {}\nfolded under {} to\n  {}\n", dp, xp, d_fold);
         println!(
-          "  {:?}\n[{:?} -> {:?}]\n  {:?}\n",
+          "  {}\n[{} -> {}]\n  {}\n",
           d_fold,
           xp,
           d2,
@@ -100,7 +100,7 @@ fn contains_x(f: &Dist, x: Var) -> bool {
     DVar(z) => *z == x,
     Rat(..) => false,
     Bin(box d1, box d2, _op) => contains_x(d1, x) || contains_x(d2, x),
-    _ => todo!("{:?}", f),
+    _ => todo!("{}", f),
   }
 }
 
@@ -120,7 +120,7 @@ fn linearize(f: &Dist, x: Var, y: Var) -> Dist {
         op.inverse(),
       )
     }
-    _ => todo!("{:?}", f),
+    _ => todo!("{}", f),
   }
   // delta(2 + x)[y] -> delta(y - 2)[x]
   // y = 2 + x
@@ -199,10 +199,22 @@ impl Folder for PartialEval {
     match d {
       Record(h) => h.get(&x).unwrap().clone(),
       Tuple(v) => {
-        let i = format!("{:?}", x).parse::<usize>().unwrap();
+        let i = format!("{}", x).parse::<usize>().unwrap();
         v[i].clone()
       }
       _ => self.super_fold_proj(d, x),
+    }
+  }
+
+  fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
+    match (d1, d2) {
+      (Rat(n1), Rat(n2)) => match op {
+        BinOp::Add => Rat(n1 + n2),
+        BinOp::Sub => Rat(n1 - n2),
+        BinOp::Mul => Rat(n1 * n2),
+        BinOp::Div => Rat(n1 / n2),
+      },
+      _ => self.super_fold_bin(d1, d2, op),
     }
   }
 }
@@ -216,7 +228,7 @@ impl Dist {
         ("linearize", box Linearize),
       ];
       passes.into_iter().fold(init, |d, (name, mut pass)| {
-        println!("\n{}: {:?}\n", name, d);
+        println!("\n{}: {}\n", name, d);
         pass.fold(&d)
       })
     };

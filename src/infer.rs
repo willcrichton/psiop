@@ -1,5 +1,6 @@
 use crate::dist::Dist;
 use crate::lang::{v, BinOp, Expr};
+use num::BigInt;
 
 impl Expr {
   pub fn infer(&self) -> Dist {
@@ -8,7 +9,7 @@ impl Expr {
     let (arg, body) = match self {
       Expr::Int(n) => {
         let arg = v("r");
-        (arg, Delta(box Rat(*n, 1), arg))
+        (arg, Delta(box Rat(BigInt::from(*n).into()), arg))
       }
       Expr::EVar(x) => {
         let arg = v("r");
@@ -48,9 +49,8 @@ impl Expr {
                 vec![
                   Pdf(box App(box d1, box DVar(state)), func),
                   Pdf(box App(box d2, box DVar(state)), arg),
-                  
                   // TODO: this doesn't work w/ curried functions
-                  Pdf(box App(box DVar(func), box DVar(arg)), output)
+                  Pdf(box App(box DVar(func), box DVar(arg)), output),
                 ],
                 BinOp::Mul,
               ),
