@@ -1,6 +1,7 @@
-use string_interner::{StringInterner, DefaultSymbol as Symbol};
 use std::cell::RefCell;
 use std::fmt;
+use string_interner::{DefaultSymbol as Symbol, StringInterner};
+use std::collections::{HashSet, HashMap};
 
 thread_local! {
   pub static INTERNER: RefCell<StringInterner> = RefCell::new(StringInterner::default());
@@ -27,15 +28,28 @@ impl fmt::Debug for Var {
     INTERNER.with(|interner| {
       let interner = interner.borrow();
       let s = interner.resolve(self.0).unwrap();
-      write!(f, "{}", s)      
+      write!(f, "{}", s)
     })
   }
 }
 
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BinOp {
-  Add, Mul
+  Add,
+  Mul,
+  Div,
+  Sub,
+}
+
+impl BinOp {
+  pub fn inverse(&self) -> Self {
+    match self {
+      BinOp::Add => BinOp::Sub,
+      BinOp::Sub => BinOp::Add,
+      BinOp::Mul => BinOp::Div,
+      BinOp::Div => BinOp::Mul
+    }    
+  }
 }
 
 impl fmt::Debug for BinOp {
@@ -43,6 +57,8 @@ impl fmt::Debug for BinOp {
     match self {
       BinOp::Add => write!(f, "+"),
       BinOp::Mul => write!(f, "*"),
+      BinOp::Div => write!(f, "/"),
+      BinOp::Sub => write!(f, "-"),
     }
   }
 }
@@ -51,15 +67,31 @@ impl fmt::Debug for BinOp {
 pub enum Expr {
   Int(isize),
   EVar(Var),
-  Bin(Box<Expr>, Box<Expr>, BinOp),  
+  Bin(Box<Expr>, Box<Expr>, BinOp),
   App(Box<Expr>, Box<Expr>),
-  Tuple(Vec<Expr>)
+  Tuple(Vec<Expr>),
 }
 
 pub enum Stmt {
   Assign(Var, Box<Expr>),
   AssignEx(Box<Expr>, Box<Expr>),
-  If(Box<Expr>, Vec<Stmt>, Vec<Stmt>)
+  If(Box<Expr>, Vec<Stmt>, Vec<Stmt>),
 }
 
 pub type Prog = Vec<Stmt>;
+
+#[derive(Default, Clone)]
+pub struct BoundVars(HashMap<Var, usize>);
+impl BoundVars {
+  pub fn bind(&mut self, x: Var) {
+    *self.0.entry(x).or_insert(0) += 1;
+  }
+
+  pub fn unbind(&mut self, x: Var) {
+    *self.0.entry(x).or_insert(0) -= 1;
+  }
+
+  pub fn bound_vars(&self) -> HashSet<Var> {
+    self.0.iter().filter_map(|(k, v)| (*v > 0).then(|| *k)).collect()
+  }
+}

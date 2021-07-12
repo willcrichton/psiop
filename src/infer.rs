@@ -11,7 +11,7 @@ impl Expr {
         (arg, Delta(box Rat(*n, 1), arg))
       }
       Expr::EVar(x) => {
-        let arg = v("σ'");
+        let arg = v("r");
         (arg, Delta(box Proj(box DVar(state), *x), arg))
       }
       Expr::Bin(box e1, box e2, binop) => {
@@ -23,11 +23,11 @@ impl Expr {
             y,
             box Integral(
               z,
-              box Bin(
+              box Dist::bin_many(
                 vec![
                   Pdf(box App(box d1, box DVar(state)), y),
                   Pdf(box App(box d2, box DVar(state)), z),
-                  Delta(box Bin(vec![DVar(y), DVar(z)], *binop), x),
+                  Delta(box Bin(box DVar(y), box DVar(z), *binop), x),
                 ],
                 BinOp::Mul,
               ),
@@ -44,11 +44,13 @@ impl Expr {
             func,
             box Integral(
               arg,
-              box Bin(
+              box Dist::bin_many(
                 vec![
                   Pdf(box App(box d1, box DVar(state)), func),
                   Pdf(box App(box d2, box DVar(state)), arg),
-                  Delta(box App(box DVar(func), box DVar(arg)), output),
+                  
+                  // TODO: this doesn't work w/ curried functions
+                  Pdf(box App(box DVar(func), box DVar(arg)), output)
                 ],
                 BinOp::Mul,
               ),
@@ -62,27 +64,30 @@ impl Expr {
           (arg, Delta(box Tuple(vec![]), arg))
         } else {
           let ds = es
-          .iter()
-          .enumerate()
-          .map(|(i, e)| (e.infer(), v(format!("x{}", i))))
-          .collect::<Vec<_>>();
-        let init = Bin(
-          ds.clone()
-            .into_iter()
-            .map(|(d, x)| Pdf(box App(box d, box DVar(state)), x))
-            .chain(
-              vec![Delta(
-                box Tuple(ds.iter().map(|(_, x)| DVar(*x)).collect()),
-                arg,
-              )]
-              .into_iter(),
-            )
-            .collect(),
-          BinOp::Mul,
-        );
-        (arg, ds.into_iter()
-          .fold(init, |acc, (d, x)| Integral(x, box acc)))
-        }       
+            .iter()
+            .enumerate()
+            .map(|(i, e)| (e.infer(), v(format!("x{}", i))))
+            .collect::<Vec<_>>();
+          let init = Dist::bin_many(
+            ds.clone()
+              .into_iter()
+              .map(|(d, x)| Pdf(box App(box d, box DVar(state)), x))
+              .chain(
+                vec![Delta(
+                  box Tuple(ds.iter().map(|(_, x)| DVar(*x)).collect()),
+                  arg,
+                )]
+                .into_iter(),
+              )
+              .collect(),
+            BinOp::Mul,
+          );
+          (
+            arg,
+            ds.into_iter()
+              .fold(init, |acc, (d, x)| Integral(x, box acc)),
+          )
+        }
       }
       _ => todo!("{:?}", self),
     };
