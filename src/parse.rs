@@ -22,6 +22,7 @@ pub enum Token<'a> {
   #[token("}")] Rbrc,
   #[token(",")] Comma,
   #[token(";")] Semi,
+  #[token(":")] Colon,
   #[token(":=")] Assign,
   #[token("=")] Eq,
   #[token("≠")] Neq,
@@ -79,6 +80,8 @@ peg::parser! {grammar rpsi_parser<'t>() for [Token<'t>] {
   rule predop() -> PredOp = op:$([Eq] / [Neq] / [Le] / [Leq]) {
     PredOp::from_token(&op[0])
   }
+  rule record_entry() -> (Var, Dist) = x:var() [Colon] d:dist()
+    { (x, d) }
 
   pub rule dist() -> Dist = precedence! {
     d1:(@) op:$([Add] / [Sub]) d2:@
@@ -89,7 +92,7 @@ peg::parser! {grammar rpsi_parser<'t>() for [Token<'t>] {
     --
     d:(@) [Ldbl] v:var() [Rdbl]
       { Dist::Pdf(box d, v) }
-    d1:(@) [Lbrc] x:var() [Mapsto] d2:dist() [Rbrc]
+    d1:(@) [Lsqr] x:var() [Mapsto] d2:dist() [Rsqr]
       { Dist::RecSet(box d1, x, box d2)}
     --
     d1:(@) () d2:@
@@ -100,6 +103,8 @@ peg::parser! {grammar rpsi_parser<'t>() for [Token<'t>] {
     d:(@) [Dot] [Number(n)]
       { Dist::Proj(box d, Var::new(format!("{}", n))) }
     --
+    [Lbrc] rs:record_entry() ** [Comma] [Rbrc]
+      { Dist::Record(rs.into_iter().collect()) }
     [Delta] [Lparen] d:dist() [Rparen] [Ldbl] x:var() [Rdbl]
       { Dist::Delta(box d, x) }
     [Integral] v:var() d:dist()
@@ -218,9 +223,10 @@ impl Parse for Dist {
 #[macro_export]
 macro_rules! dparse {
   ($($e:tt)*) => {
-    { 
+    {
       use crate::parse::Parse;
-      Dist::parse(format!($($e)*)).unwrap()
+      let s = format!($($e)*);
+      Dist::parse(&s).expect(&s)
     }
   }
 }
@@ -229,7 +235,6 @@ macro_rules! dparse {
 mod test {
   use super::Parse;
   use crate::dist::{Dist, Dist::*};
-  use crate::lang::{Expr, Stmt};
 
   #[test]
   fn test_dist() {
@@ -251,7 +256,8 @@ mod test {
       (is!(Pred), vec!["[a=b]", "[a≠b]", "[a≤b]", "[a<b]"]),
       (is!(Pdf), vec!["x⟦x⟧", "x.a⟦x⟧"]),
       (is!(Proj), vec!["t.x", "t.0"]),
-      (is!(RecSet), vec!["σ{x↦1+2}"]),
+      (is!(RecSet), vec!["σ[x ↦ 1+2]"]),
+      (is!(Record), vec!["{x: 1, y: 2}"]),
       (is!(Integral), vec!["∫dy 1 + 2"]),
       (is!(Distr), vec!["Λy. 1 + 2"]),
       (is!(Func), vec!["λy. 1 + 2"]),

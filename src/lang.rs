@@ -1,8 +1,8 @@
+use num::BigRational;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 use string_interner::{DefaultSymbol as Symbol, StringInterner};
-use num::BigRational;
 
 thread_local! {
   pub static INTERNER: RefCell<StringInterner> = RefCell::new(StringInterner::default());
@@ -28,7 +28,7 @@ impl Var {
   }
 
   pub fn fresh(&self) -> Var {
-    let s =INTERNER.with(|interner| {
+    let s = INTERNER.with(|interner| {
       let interner = interner.borrow();
       let mut i = 1;
       loop {
@@ -134,7 +134,7 @@ pub enum Stmt {
   Assign(Expr, Expr),
   If(Expr, Box<Stmt>, Box<Stmt>),
   Observe(Expr),
-  Seq(Box<Stmt>, Box<Stmt>)
+  Seq(Box<Stmt>, Box<Stmt>),
 }
 
 pub type Prog = Vec<Stmt>;
@@ -148,14 +148,6 @@ impl BoundVars {
 
   pub fn unbind(&mut self, x: Var) {
     *self.0.entry(x).or_insert(0) -= 1;
-  }
-
-  pub fn bound_vars(&self) -> HashSet<Var> {
-    self
-      .0
-      .iter()
-      .filter_map(|(k, v)| (*v > 0).then(|| *k))
-      .collect()
   }
 
   pub fn is_bound(&self, x: Var) -> bool {

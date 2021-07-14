@@ -83,11 +83,11 @@ pub trait Visitor {
     self.visit_var(x);
     self.visit(d);
   }
-  
+
   fn visit_binder(&mut self, x: Var, d: &Dist) {
     self.super_visit_binder(x, d);
   }
-  
+
   fn bound_vars(&mut self) -> Option<&mut BoundVars> {
     None
   }
@@ -186,6 +186,7 @@ pub trait Visitor {
 
   fn super_visit_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) {
     self.visit(d1);
+    self.visit_var(x);
     self.visit(d2);
   }
 
@@ -376,8 +377,6 @@ pub trait Folder {
       Dist::Integral(x, _) | Dist::Func(x, _) | Dist::Distr(x, _) => {
         self.fold_binder(*x, d)
       }
-      Dist::Func(x, box d) => self.fold_func(*x, d),
-      Dist::Distr(x, box d) => self.fold_distr(*x, d),
       Dist::Delta(box d, x) => self.fold_delta(d, *x),
       Dist::Pdf(box d, x) => self.fold_pdf(d, *x),
       Dist::App(box e1, box e2) => self.fold_app(e1, e2),
@@ -394,7 +393,7 @@ pub trait Folder {
 
 struct FreeVars {
   fv: HashSet<Var>,
-  bv: BoundVars
+  bv: BoundVars,
 }
 
 impl Visitor for FreeVars {

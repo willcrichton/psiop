@@ -1,7 +1,6 @@
 use crate::dist::{Dist, Dist::*};
 use crate::dparse;
-use crate::lang::{v, BinOp, Expr, Stmt, Var};
-use crate::parse::Parse;
+use crate::lang::{v, Expr, Stmt, Var};
 use lazy_static::lazy_static;
 use maplit::hashmap;
 use std::collections::HashMap;
@@ -101,7 +100,7 @@ impl Stmt {
         (
           v("σ1"),
           dparse!(
-            "∫d{xp} ({d})(σ)⟦{xp}⟧·δ(σ{{{x}↦{xp}}})⟦σ1⟧",
+            "∫d{xp} ({d})(σ)⟦{xp}⟧·δ(σ[{x}↦{xp}])⟦σ1⟧",
             x = x,
             xp = xp,
             d = e.infer()

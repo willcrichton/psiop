@@ -8,7 +8,7 @@ mod parse;
 mod simplify;
 
 use dist::Dist;
-use lang::{v, Expr, Stmt};
+use lang::Stmt;
 use parse::Parse;
 use std::collections::HashMap;
 

@@ -231,17 +231,17 @@ impl Folder for PartialEval {
     }
   }
 
-  // fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
-  //   match (d1, d2) {
-  //     (Rat(n1), Rat(n2)) => match op {
-  //       BinOp::Add => Rat(n1 + n2),
-  //       BinOp::Sub => Rat(n1 - n2),
-  //       BinOp::Mul => Rat(n1 * n2),
-  //       BinOp::Div => Rat(n1 / n2),
-  //     },
-  //     _ => self.super_fold_bin(d1, d2, op),
-  //   }
-  // }
+  fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
+    match (d1, d2) {
+      (Rat(n1), Rat(n2)) => match op {
+        BinOp::Add => Rat(n1 + n2),
+        BinOp::Sub => Rat(n1 - n2),
+        BinOp::Mul => Rat(n1 * n2),
+        BinOp::Div => Rat(n1 / n2),
+      },
+      _ => self.super_fold_bin(d1, d2, op),
+    }
+  }
 }
 
 impl Dist {
@@ -276,17 +276,11 @@ mod test {
   use super::*;
   use crate::dparse;
 
-  #[test]
-  fn test_delta_subst() {
-    let tests = vec![
-      ("∫dn n * δ(1)⟦n⟧", "1"),
-      ("∫dn (∫dx x * n) * δ(1)⟦n⟧", "∫dx x * 1"),
-    ];
-    
+  fn check_pass<T: Folder>(tests: Vec<(&str, &str)>, mk_pass: impl Fn() -> T) {
     for (input, desired_output) in tests {
       let (input, desired_output) =
         (dparse!("{}", input), dparse!("{}", desired_output));
-      let mut pass = DeltaSubst::default();
+      let mut pass = mk_pass();
       let actual_output = pass.fold(&input);
       assert_eq!(
         actual_output, desired_output,
@@ -294,5 +288,27 @@ mod test {
         actual_output, desired_output
       );
     }
+  }
+
+  #[test]
+  fn test_delta_subst() {
+    let tests = vec![
+      ("∫dn n * δ(1)⟦n⟧", "1"),
+      ("∫dn (∫dx x * n) * δ(1)⟦n⟧", "∫dx x * 1"),
+    ];
+    check_pass(tests, || DeltaSubst::default());
+  }
+
+  #[test]
+  fn test_partial_eval() {
+    let tests = vec![
+      ("1 + 2", "3"),
+      ("{x: 1}.x", "1"),
+      ("{x: 1}[x ↦ 2]", "{x: 2}"),
+      ("(1, 2).0", "1"),
+      ("(Λx.x)⟦y⟧", "y"),
+      ("(λx.x)1", "1"),
+    ];
+    check_pass(tests, || PartialEval)
   }
 }
