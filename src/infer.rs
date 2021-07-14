@@ -1,93 +1,116 @@
-use crate::dist::Dist;
-use crate::lang::{v, BinOp, Expr};
-use num::BigInt;
+use crate::dist::{Dist, Dist::*};
+use crate::dparse;
+use crate::lang::{v, BinOp, Expr, Stmt, Var};
+use crate::parse::Parse;
+use lazy_static::lazy_static;
+use maplit::hashmap;
+use std::collections::HashMap;
+
+fn rec(d: Dist, s: Var, v: Var) -> Box<Dist> {
+  box Pdf(box App(box d, box DVar(s)), v)
+}
+
+lazy_static! {
+  static ref PRELUDE: HashMap<Var, Dist> = {
+    hashmap! {
+      v("uniform") => dparse!("λt. Λx. 1 / (t.1 - t.0) * [t.0 ≤ x] * [x ≤ t.1] * λ⟦x⟧")
+    }
+  };
+}
 
 impl Expr {
   pub fn infer(&self) -> Dist {
-    use Dist::*;
     let state = v("σ");
     let (arg, body) = match self {
-      Expr::Int(n) => {
-        let arg = v("r");
-        (arg, Delta(box Rat(BigInt::from(*n).into()), arg))
-      }
+      Expr::Rat(n) => (v("n"), dparse!("δ({})⟦n⟧", n)),
       Expr::EVar(x) => {
-        let arg = v("r");
-        (arg, Delta(box Proj(box DVar(state), *x), arg))
+        let val = match PRELUDE.get(x) {
+          Some(d) => format!("{}", d),
+          None => format!("σ.{}", x),
+        };
+        (v("r"), dparse!("δ({})⟦r⟧", val))
       }
-      Expr::Bin(box e1, box e2, binop) => {
-        let (x, y, z) = (v("x"), v("y"), v("z"));
-        let (d1, d2) = (e1.infer(), e2.infer());
+      Expr::Bin(e1, e2, _) | Expr::Pred(e1, e2, _) => {
+        let inner = match self {
+          Expr::Bin(_, _, binop) => dparse!("y {} z", binop),
+          Expr::Pred(_, _, predop) => dparse!("[y {} z]", predop),
+          _ => unreachable!(),
+        };
         (
-          x,
-          Integral(
-            y,
-            box Integral(
-              z,
-              box Dist::bin_many(
-                vec![
-                  Pdf(box App(box d1, box DVar(state)), y),
-                  Pdf(box App(box d2, box DVar(state)), z),
-                  Delta(box Bin(box DVar(y), box DVar(z), *binop), x),
-                ],
-                BinOp::Mul,
-              ),
-            ),
+          v("x"),
+          dparse!(
+            "∫dy ∫dz ({})(σ)⟦y⟧ * ({})(σ)⟦z⟧ * δ({})⟦x⟧",
+            e1.infer(),
+            e2.infer(),
+            inner
           ),
         )
       }
-      Expr::App(box e1, box e2) => {
-        let (output, func, arg) = (v("o"), v("f"), v("a"));
-        let (d1, d2) = (e1.infer(), e2.infer());
-        (
-          output,
-          Integral(
-            func,
-            box Integral(
-              arg,
-              box Dist::bin_many(
-                vec![
-                  Pdf(box App(box d1, box DVar(state)), func),
-                  Pdf(box App(box d2, box DVar(state)), arg),
-                  // TODO: this doesn't work w/ curried functions
-                  Pdf(box App(box DVar(func), box DVar(arg)), output),
-                ],
-                BinOp::Mul,
-              ),
-            ),
-          ),
-        )
-      }
+      Expr::App(box e1, box e2) => (
+        v("o"),
+        dparse!(
+          "∫df ∫da ({})(σ)⟦f⟧ * ({})(σ)⟦a⟧ * (f a)⟦o⟧",
+          e1.infer(),
+          e2.infer()
+        ),
+      ),
       Expr::Tuple(es) => {
-        let arg = v("x");
-        if es.len() == 0 {
-          (arg, Delta(box Tuple(vec![]), arg))
-        } else {
-          let ds = es
-            .iter()
-            .enumerate()
-            .map(|(i, e)| (e.infer(), v(format!("x{}", i))))
-            .collect::<Vec<_>>();
-          let init = Dist::bin_many(
-            ds.clone()
-              .into_iter()
-              .map(|(d, x)| Pdf(box App(box d, box DVar(state)), x))
-              .chain(
-                vec![Delta(
-                  box Tuple(ds.iter().map(|(_, x)| DVar(*x)).collect()),
-                  arg,
-                )]
-                .into_iter(),
-              )
-              .collect(),
-            BinOp::Mul,
-          );
-          (
-            arg,
-            ds.into_iter()
-              .fold(init, |acc, (d, x)| Integral(x, box acc)),
+        let vars = (0..es.len()).map(|i| format!("x{}", i)).collect::<Vec<_>>();
+        let base = es
+          .iter()
+          .zip(vars.iter())
+          .map(|(e, x)| format!("({})(σ)⟦{}⟧", e.infer(), x))
+          .chain(
+            vec![format!(
+              "δ(({}))⟦x⟧",
+              vars.clone().into_iter().collect::<Vec<_>>().join(",")
+            )]
+            .into_iter(),
           )
-        }
+          .collect::<Vec<_>>()
+          .join("*");
+        (
+          v("x"),
+          dparse!(
+            "{}",
+            vars
+              .iter()
+              .fold(base, |prog, x| format!("∫d{} {}", x, prog))
+          ),
+        )
+      }
+      _ => todo!("{:?}", self),
+    };
+
+    Func(state, box Distr(arg, box body))
+  }
+}
+
+impl Stmt {
+  pub fn infer(&self) -> Dist {
+    use Dist::*;
+    let state = v("σ");
+
+    let (arg, body) = match self {
+      Stmt::Seq(box s1, box s2) => (
+        v("σ2"),
+        dparse!("∫dσ1 ({})(σ)⟦σ1⟧ · ({})(σ1)⟦σ2⟧", s1.infer(), s2.infer()),
+      ),
+      Stmt::Init(x, e) => {
+        let xp = v(format!("{}'", x));
+        (
+          v("σ1"),
+          dparse!(
+            "∫d{xp} ({d})(σ)⟦{xp}⟧·δ(σ{{{x}↦{xp}}})⟦σ1⟧",
+            x = x,
+            xp = xp,
+            d = e.infer()
+          ),
+        )
+      }
+      Stmt::Observe(e) => {
+        let d = e.infer();
+        (v("σ1"), dparse!("δ(σ)⟦σ1⟧·(∫dx ({})(σ)⟦x⟧·[x≠0])", d))
       }
       _ => todo!("{:?}", self),
     };

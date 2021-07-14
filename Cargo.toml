@@ -7,8 +7,14 @@ edition = "2018"
 
 [dependencies]
 string-interner = "0.12"
-pest = "2.1"
-pest_derive = "2.1"
+# pest = "2.1"
+# pest_derive = "2.1"
 lazy_static = "1.4"
 anyhow = "1"
 num = "0.4"
+maplit = "1"
+peg = "0.7"
+logos = "0.12"
+
+[profile.release]
+debug = true

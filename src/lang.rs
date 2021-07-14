@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use string_interner::{DefaultSymbol as Symbol, StringInterner};
+use num::BigRational;
 
 thread_local! {
   pub static INTERNER: RefCell<StringInterner> = RefCell::new(StringInterner::default());
@@ -16,6 +17,29 @@ impl Var {
       let symbol = interner.borrow_mut().get_or_intern(t.into());
       Var(symbol)
     })
+  }
+
+  pub fn to_string(&self) -> String {
+    INTERNER.with(|interner| {
+      let interner = interner.borrow();
+      let s = interner.resolve(self.0).unwrap();
+      s.to_string()
+    })
+  }
+
+  pub fn fresh(&self) -> Var {
+    let s =INTERNER.with(|interner| {
+      let interner = interner.borrow();
+      let mut i = 1;
+      loop {
+        let s = format!("{}{}", self, i);
+        if interner.get(&s).is_none() {
+          return s;
+        }
+        i += 1;
+      }
+    });
+    Var::new(s)
   }
 }
 
@@ -69,19 +93,48 @@ impl fmt::Display for BinOp {
   }
 }
 
-#[derive(Debug)]
-pub enum Expr {
-  Int(isize),
-  EVar(Var),
-  Bin(Box<Expr>, Box<Expr>, BinOp),
-  App(Box<Expr>, Box<Expr>),
-  Tuple(Vec<Expr>),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PredOp {
+  Eq,
+  Leq,
+  Neq,
+  Le,
 }
 
+impl fmt::Display for PredOp {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    use PredOp::*;
+    write!(
+      f,
+      "{}",
+      match self {
+        Eq => "=",
+        Leq => "≤",
+        Neq => "≠",
+        Le => "<",
+      }
+    )
+  }
+}
+
+#[derive(Debug)]
+pub enum Expr {
+  Rat(BigRational),
+  EVar(Var),
+  Bin(Box<Expr>, Box<Expr>, BinOp),
+  Pred(Box<Expr>, Box<Expr>, PredOp),
+  App(Box<Expr>, Box<Expr>),
+  Tuple(Vec<Expr>),
+  Proj(Box<Expr>, Var),
+}
+
+#[derive(Debug)]
 pub enum Stmt {
-  Assign(Var, Box<Expr>),
-  AssignEx(Box<Expr>, Box<Expr>),
-  If(Box<Expr>, Vec<Stmt>, Vec<Stmt>),
+  Init(Var, Expr),
+  Assign(Expr, Expr),
+  If(Expr, Box<Stmt>, Box<Stmt>),
+  Observe(Expr),
+  Seq(Box<Stmt>, Box<Stmt>)
 }
 
 pub type Prog = Vec<Stmt>;
@@ -103,5 +156,9 @@ impl BoundVars {
       .iter()
       .filter_map(|(k, v)| (*v > 0).then(|| *k))
       .collect()
+  }
+
+  pub fn is_bound(&self, x: Var) -> bool {
+    self.0.contains_key(&x)
   }
 }

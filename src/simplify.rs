@@ -4,15 +4,19 @@ use crate::lang::{v, BinOp, BoundVars, Var};
 struct FindConstDelta {
   val: Option<Dist>,
   var: Var,
-  int_vars: BoundVars,
+  bv: BoundVars,
 }
 impl Folder for FindConstDelta {
+  fn bound_vars(&mut self) -> Option<&mut BoundVars> {
+    Some(&mut self.bv)
+  }
+
   fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
     macro_rules! check {
       ($d:expr, $other:expr) => {
         match $d {
           Delta(box d3, x) => {
-            if *x == self.var && d3.is_value(&self.int_vars.bound_vars()) {
+            if *x == self.var && d3.is_value(&self.bv) {
               self.val = Some(d3.clone());
               return $other.clone();
             }
@@ -27,31 +31,28 @@ impl Folder for FindConstDelta {
 
     self.super_fold_bin(d1, d2, op)
   }
-
-  fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
-    self.int_vars.bind(x);
-    let dp = self.super_fold_integral(x, d);
-    self.int_vars.unbind(x);
-    dp
-  }
 }
 
 #[derive(Default)]
 struct DeltaSubst {
-  int_vars: BoundVars,
+  bv: BoundVars,
 }
 
 impl Folder for DeltaSubst {
+  fn bound_vars(&mut self) -> Option<&mut BoundVars> {
+    Some(&mut self.bv)
+  }
+
   fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
     let xp = v(format!("{}'", x));
-    let mut int_vars = self.int_vars.clone();
-    int_vars.bind(xp);
+    let dp = d.subst(x, DVar(xp));
+    let mut bv = self.bv.clone();
+    bv.bind(xp);
     let mut finder = FindConstDelta {
-      int_vars,
+      bv,
       val: None,
       var: xp,
     };
-    let dp = d.subst(x, DVar(xp));
     let d_fold = finder.fold(&dp);
 
     match finder.val {
@@ -66,12 +67,7 @@ impl Folder for DeltaSubst {
         );
         self.fold(&d_fold.subst(xp, d2))
       }
-      None => {
-        self.int_vars.bind(x);
-        let dp = self.super_fold_integral(x, d);
-        self.int_vars.unbind(x);
-        dp
-      }
+      None => self.super_fold_integral(x, d),
     }
   }
 }
@@ -183,14 +179,32 @@ struct PartialEval;
 impl Folder for PartialEval {
   fn fold_app(&mut self, e1: &Dist, e2: &Dist) -> Dist {
     match e1 {
-      Func(x, d) => self.fold(&d.subst(*x, e2.clone())),
+      Func(x, d) => {
+        println!(
+          "  {}\n[{} -> {}]\n  {}\n",
+          d,
+          x,
+          e2,
+          d.subst(*x, e2.clone())
+        );
+        self.fold(&d.subst(*x, e2.clone()))
+      }
       _ => self.super_fold_app(e1, e2),
     }
   }
 
   fn fold_pdf(&mut self, d: &Dist, x: Var) -> Dist {
     match d {
-      Distr(y, d1) => self.fold(&d1.subst(*y, Dist::DVar(x))),
+      Distr(y, d1) => {
+        println!(
+          "  {}\n[{} -> {}]\n  {}\n",
+          d1,
+          y,
+          x,
+          d1.subst(*y, Dist::DVar(x))
+        );
+        self.fold(&d1.subst(*y, Dist::DVar(x)))
+      }
       _ => self.super_fold_pdf(d, x),
     }
   }
@@ -206,17 +220,28 @@ impl Folder for PartialEval {
     }
   }
 
-  fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
-    match (d1, d2) {
-      (Rat(n1), Rat(n2)) => match op {
-        BinOp::Add => Rat(n1 + n2),
-        BinOp::Sub => Rat(n1 - n2),
-        BinOp::Mul => Rat(n1 * n2),
-        BinOp::Div => Rat(n1 / n2),
-      },
-      _ => self.super_fold_bin(d1, d2, op),
+  fn fold_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) -> Dist {
+    match d1 {
+      Record(h) => {
+        let mut h = h.clone();
+        h.insert(x, d2.clone());
+        Record(h)
+      }
+      _ => self.super_fold_rec_set(d1, x, d2),
     }
   }
+
+  // fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
+  //   match (d1, d2) {
+  //     (Rat(n1), Rat(n2)) => match op {
+  //       BinOp::Add => Rat(n1 + n2),
+  //       BinOp::Sub => Rat(n1 - n2),
+  //       BinOp::Mul => Rat(n1 * n2),
+  //       BinOp::Div => Rat(n1 / n2),
+  //     },
+  //     _ => self.super_fold_bin(d1, d2, op),
+  //   }
+  // }
 }
 
 impl Dist {
@@ -228,22 +253,46 @@ impl Dist {
         ("linearize", box Linearize),
       ];
       passes.into_iter().fold(init, |d, (name, mut pass)| {
-        println!("\n{}: {}\n", name, d);
-        pass.fold(&d)
+        let d2 = pass.fold(&d);
+        if d2 != d {
+          println!("\n{}: {}\n", name, d2);
+        }
+        d2
       })
     };
 
+    let mut history = vec![];
     let mut dist = self.clone();
-    loop {
-      let new_dist = run_passes(dist.clone());
-      if new_dist == dist
-      /* new_dist.aequiv(&dist) */
-      {
-        break;
-      } else {
-        dist = new_dist;
-      }
+    while !history.iter().any(|d2| dist == *d2) {
+      history.push(dist.clone());
+      dist = run_passes(dist);
     }
     dist
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::dparse;
+
+  #[test]
+  fn test_delta_subst() {
+    let tests = vec![
+      ("∫dn n * δ(1)⟦n⟧", "1"),
+      ("∫dn (∫dx x * n) * δ(1)⟦n⟧", "∫dx x * 1"),
+    ];
+    
+    for (input, desired_output) in tests {
+      let (input, desired_output) =
+        (dparse!("{}", input), dparse!("{}", desired_output));
+      let mut pass = DeltaSubst::default();
+      let actual_output = pass.fold(&input);
+      assert_eq!(
+        actual_output, desired_output,
+        "actual: {}, desired: {}",
+        actual_output, desired_output
+      );
+    }
   }
 }

@@ -3,30 +3,6 @@ use num::BigRational;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PredOp {
-  Eq,
-  Leq,
-  Neq,
-  Le,
-}
-
-impl fmt::Display for PredOp {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    use PredOp::*;
-    write!(
-      f,
-      "{}",
-      match self {
-        Eq => "=",
-        Leq => "≤",
-        Neq => "≠",
-        Le => "<",
-      }
-    )
-  }
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Dist {
   DVar(Var),
@@ -47,6 +23,7 @@ pub enum Dist {
   App(Box<Dist>, Box<Dist>),
   Record(HashMap<Var, Dist>),
   Proj(Box<Dist>, Var),
+  RecSet(Box<Dist>, Var, Box<Dist>),
   Tuple(Vec<Dist>),
 }
 
@@ -105,6 +82,29 @@ pub trait Visitor {
   fn super_visit_distr(&mut self, x: Var, d: &Dist) {
     self.visit_var(x);
     self.visit(d);
+  }
+  
+  fn visit_binder(&mut self, x: Var, d: &Dist) {
+    self.super_visit_binder(x, d);
+  }
+  
+  fn bound_vars(&mut self) -> Option<&mut BoundVars> {
+    None
+  }
+
+  fn super_visit_binder(&mut self, x: Var, d: &Dist) {
+    if let Some(bv) = self.bound_vars() {
+      bv.bind(x);
+    }
+    match d {
+      Dist::Func(_, box d) => self.visit_func(x, d),
+      Dist::Distr(_, box d) => self.visit_distr(x, d),
+      Dist::Integral(_, box d) => self.visit_integral(x, d),
+      _ => unreachable!(),
+    };
+    if let Some(bv) = self.bound_vars() {
+      bv.unbind(x);
+    }
   }
 
   fn visit_delta(&mut self, d: &Dist, x: Var) {
@@ -167,13 +167,24 @@ pub trait Visitor {
     self.super_visit_lebesgue(x)
   }
 
-  fn super_visit_lebesgue(&mut self, x: Var) {}
+  fn super_visit_lebesgue(&mut self, x: Var) {
+    self.visit_var(x);
+  }
 
   fn visit_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) {
     self.super_visit_pred(d1, d2, op);
   }
 
-  fn super_visit_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) {
+  fn super_visit_pred(&mut self, d1: &Dist, d2: &Dist, _op: PredOp) {
+    self.visit(d1);
+    self.visit(d2);
+  }
+
+  fn visit_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) {
+    self.super_visit_rec_set(d1, x, d2);
+  }
+
+  fn super_visit_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) {
     self.visit(d1);
     self.visit(d2);
   }
@@ -183,9 +194,9 @@ pub trait Visitor {
       Dist::DVar(v) => self.visit_dvar(*v),
       Dist::Rat(rat) => self.visit_rat(rat),
       Dist::Bin(box d1, box d2, op) => self.visit_bin(d1, d2, *op),
-      Dist::Integral(x, box d) => self.visit_integral(*x, d),
-      Dist::Func(x, box d) => self.visit_func(*x, d),
-      Dist::Distr(x, box d) => self.visit_distr(*x, d),
+      Dist::Integral(x, _) | Dist::Func(x, _) | Dist::Distr(x, _) => {
+        self.visit_binder(*x, d)
+      }
       Dist::Delta(box d, x) => self.visit_delta(d, *x),
       Dist::Pdf(box d, x) => self.visit_pdf(d, *x),
       Dist::App(box e1, box e2) => self.visit_app(e1, e2),
@@ -194,6 +205,7 @@ pub trait Visitor {
       Dist::Record(h) => self.visit_record(h),
       Dist::Lebesgue(x) => self.visit_lebesgue(*x),
       Dist::Pred(box d1, box d2, op) => self.visit_pred(d1, d2, *op),
+      Dist::RecSet(box d1, x, box d2) => self.visit_rec_set(d1, *x, d2),
       _ => todo!("{}", d),
     }
   }
@@ -256,6 +268,30 @@ pub trait Folder {
     Dist::Distr(self.fold_var(x), box self.fold(d))
   }
 
+  fn fold_binder(&mut self, x: Var, d: &Dist) -> Dist {
+    self.super_fold_binder(x, d)
+  }
+
+  fn bound_vars(&mut self) -> Option<&mut BoundVars> {
+    None
+  }
+
+  fn super_fold_binder(&mut self, x: Var, d: &Dist) -> Dist {
+    if let Some(bv) = self.bound_vars() {
+      bv.bind(x);
+    }
+    let d2 = match d {
+      Dist::Func(_, box d) => self.fold_func(x, d),
+      Dist::Distr(_, box d) => self.fold_distr(x, d),
+      Dist::Integral(_, box d) => self.fold_integral(x, d),
+      _ => unreachable!(),
+    };
+    if let Some(bv) = self.bound_vars() {
+      bv.unbind(x);
+    }
+    d2
+  }
+
   fn fold_delta(&mut self, d: &Dist, x: Var) -> Dist {
     self.super_fold_delta(d, x)
   }
@@ -293,7 +329,7 @@ pub trait Folder {
   }
 
   fn super_fold_proj(&mut self, d: &Dist, x: Var) -> Dist {
-    Dist::Proj(box self.fold(d), self.fold_var(x))
+    Dist::Proj(box self.fold(d), x)
   }
 
   fn fold_record(&mut self, h: &HashMap<Var, Dist>) -> Dist {
@@ -324,12 +360,22 @@ pub trait Folder {
     Dist::Pred(box self.fold(d1), box self.fold(d2), op)
   }
 
+  fn fold_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) -> Dist {
+    self.super_fold_rec_set(d1, x, d2)
+  }
+
+  fn super_fold_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) -> Dist {
+    Dist::RecSet(box self.fold(d1), self.fold_var(x), box self.fold(d2))
+  }
+
   fn fold(&mut self, d: &Dist) -> Dist {
     match d {
       Dist::DVar(v) => self.fold_dvar(*v),
       Dist::Rat(rat) => self.fold_rat(rat),
       Dist::Bin(box d1, box d2, op) => self.fold_bin(d1, d2, *op),
-      Dist::Integral(x, box d) => self.fold_integral(*x, d),
+      Dist::Integral(x, _) | Dist::Func(x, _) | Dist::Distr(x, _) => {
+        self.fold_binder(*x, d)
+      }
       Dist::Func(x, box d) => self.fold_func(*x, d),
       Dist::Distr(x, box d) => self.fold_distr(*x, d),
       Dist::Delta(box d, x) => self.fold_delta(d, *x),
@@ -340,6 +386,7 @@ pub trait Folder {
       Dist::Record(h) => self.fold_record(h),
       Dist::Lebesgue(x) => self.fold_lebesgue(*x),
       Dist::Pred(box d1, box d2, op) => self.fold_pred(d1, d2, *op),
+      Dist::RecSet(box d1, x, box d2) => self.fold_rec_set(d1, *x, d2),
       _ => todo!("{}", d),
     }
   }
@@ -347,30 +394,16 @@ pub trait Folder {
 
 struct FreeVars {
   fv: HashSet<Var>,
-  bv: HashMap<Var, usize>,
+  bv: BoundVars
 }
 
 impl Visitor for FreeVars {
-  fn visit_func(&mut self, x: Var, d: &Dist) {
-    *self.bv.entry(x).or_insert(0) += 1;
-    self.super_visit_func(x, d);
-    *self.bv.entry(x).or_insert(0) -= 1;
-  }
-
-  fn visit_distr(&mut self, x: Var, d: &Dist) {
-    *self.bv.entry(x).or_insert(0) += 1;
-    self.super_visit_distr(x, d);
-    *self.bv.entry(x).or_insert(0) -= 1;
-  }
-
-  fn visit_integral(&mut self, x: Var, d: &Dist) {
-    *self.bv.entry(x).or_insert(0) += 1;
-    self.super_visit_integral(x, d);
-    *self.bv.entry(x).or_insert(0) -= 1;
+  fn bound_vars(&mut self) -> Option<&mut BoundVars> {
+    Some(&mut self.bv)
   }
 
   fn visit_var(&mut self, x: Var) {
-    if *self.bv.entry(x).or_insert(0) == 0 {
+    if !self.bv.is_bound(x) {
       self.fv.insert(x);
     }
   }
@@ -402,48 +435,27 @@ impl Folder for Subst {
     }
   }
 
-  fn fold_func(&mut self, x: Var, d: &Dist) -> Dist {
+  fn fold_binder(&mut self, x: Var, d: &Dist) -> Dist {
     if x == self.src {
-      Dist::Func(x, box d.clone())
+      d.clone()
     } else if self.fv.contains(&x) {
-      let xp = v(format!("{}'", x));
-      self.super_fold_func(xp, &d.subst(x, Dist::DVar(xp)))
+      let xp = x.fresh();
+      self.super_fold_binder(xp, &d.subst(x, Dist::DVar(xp)))
     } else {
-      self.super_fold_func(x, d)
-    }
-  }
-
-  fn fold_distr(&mut self, x: Var, d: &Dist) -> Dist {
-    if x == self.src {
-      Dist::Distr(x, box d.clone())
-    } else if self.fv.contains(&x) {
-      let xp = v(format!("{}'", x));
-      self.super_fold_distr(xp, &d.subst(x, Dist::DVar(xp)))
-    } else {
-      self.super_fold_distr(x, d)
-    }
-  }
-
-  fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
-    if x == self.src {
-      Dist::Integral(x, box d.clone())
-    } else if self.fv.contains(&x) {
-      let xp = v(format!("{}'", x));
-      self.super_fold_integral(xp, &d.subst(x, Dist::DVar(xp)))
-    } else {
-      self.super_fold_integral(x, d)
+      self.super_fold_binder(x, d)
     }
   }
 }
 
 impl Dist {
-  pub fn is_value(&self, int_vars: &HashSet<Var>) -> bool {
+  pub fn is_value(&self, bv: &BoundVars) -> bool {
     use Dist::*;
     match self {
-      DVar(v) => !int_vars.contains(v),
+      DVar(v) => bv.is_bound(*v),
       Rat(..) | Func(..) | Distr(..) => true,
-      Tuple(ds) => ds.iter().all(|d| d.is_value(int_vars)),
-      Bin(d1, d2, _) => d1.is_value(int_vars) && d2.is_value(int_vars),
+      Tuple(ds) => ds.iter().all(|d| d.is_value(bv)),
+      Bin(d1, d2, _) => d1.is_value(bv) && d2.is_value(bv),
+      Record(h) => h.values().all(|d| d.is_value(bv)),
       _ => false,
     }
   }
@@ -451,7 +463,7 @@ impl Dist {
   pub fn free_vars(&self) -> HashSet<Var> {
     let mut pass = FreeVars {
       fv: HashSet::new(),
-      bv: HashMap::new(),
+      bv: BoundVars::default(),
     };
     pass.visit(self);
     pass.fv
@@ -539,6 +551,7 @@ impl fmt::Display for Dist {
       }
       Dist::Lebesgue(x) => write!(f, "λ⟦{}⟧", x),
       Dist::Pred(d1, d2, op) => write!(f, "[{} {} {}]", d1, op, d2),
+      Dist::RecSet(d1, x, d2) => write!(f, "{}{{{}↦{}}}", d1, x, d2),
       _ => todo!(),
     }
   }
