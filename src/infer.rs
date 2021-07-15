@@ -12,7 +12,8 @@ fn rec(d: Dist, s: Var, v: Var) -> Box<Dist> {
 lazy_static! {
   static ref PRELUDE: HashMap<Var, Dist> = {
     hashmap! {
-      v("uniform") => dparse!("λt. Λx. 1 / (t.1 - t.0) * [t.0 ≤ x] * [x ≤ t.1] * λ⟦x⟧")
+      v("uniform") => dparse!("λt. Λx. 1 / (t.1 - t.0) * [t.0 ≤ x] * [x ≤ t.1] * λ⟦x⟧"),
+      v("Bernoulli") => dparse!("λp. Λx. p * δ(0)⟦x⟧ + (1 - p) * δ(1)⟦x⟧")
     }
   };
 }
@@ -111,6 +112,15 @@ impl Stmt {
         let d = e.infer();
         (v("σ1"), dparse!("δ(σ)⟦σ1⟧·(∫dx ({})(σ)⟦x⟧·[x≠0])", d))
       }
+      Stmt::If(e, box s1, box s2) => (
+        v("σ1"),
+        dparse!(
+          "∫dx {}(σ)⟦x⟧ * ([x ≠ 0] * {}(σ)⟦σ1⟧ + [x = 0] * {}(σ)⟦σ1⟧)",
+          e.infer(),
+          s1.infer(),
+          s2.infer()
+        ),
+      ),
       _ => todo!("{:?}", self),
     };
 

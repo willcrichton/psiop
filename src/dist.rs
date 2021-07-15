@@ -1,5 +1,6 @@
 use crate::lang::*;
 use num::BigRational;
+use pretty::{Doc, RcDoc};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -338,11 +339,7 @@ pub trait Folder {
   }
 
   fn super_fold_record(&mut self, h: &HashMap<Var, Dist>) -> Dist {
-    Dist::Record(
-      h.iter()
-        .map(|(k, v)| (*k, self.fold(v)))
-        .collect(),
-    )
+    Dist::Record(h.iter().map(|(k, v)| (*k, self.fold(v))).collect())
   }
 
   fn fold_lebesgue(&mut self, x: Var) -> Dist {
@@ -442,8 +439,10 @@ impl Folder for Subst {
       let d2 = match d {
         Dist::Func(_, d) => Dist::Func(xp, box d.subst(x, Dist::DVar(xp))),
         Dist::Distr(_, d) => Dist::Distr(xp, box d.subst(x, Dist::DVar(xp))),
-        Dist::Integral(_, d) => Dist::Integral(xp, box d.subst(x, Dist::DVar(xp))),
-        _ => unreachable!()
+        Dist::Integral(_, d) => {
+          Dist::Integral(xp, box d.subst(x, Dist::DVar(xp)))
+        }
+        _ => unreachable!(),
       };
       self.super_fold_binder(xp, &d2)
     } else {
@@ -488,6 +487,86 @@ impl Dist {
       .fold(first, |acc, d| Dist::Bin(box acc, box d, op))
   }
 
+  fn to_doc(&self) -> RcDoc<()> {
+    match self {
+      Dist::DVar(x) => x.to_doc(),
+      Dist::Rat(n) => RcDoc::as_string(format!("{}", n)),
+      Dist::Bin(d1, d2, op) => {
+        let inner = d1
+          .to_doc()
+          .group()
+          .append(Doc::line())
+          .append(RcDoc::as_string(format!("{}", op)))
+          .append(Doc::space())
+          .append(d2.to_doc().group());
+        match op {
+          BinOp::Add | BinOp::Sub => {
+            RcDoc::text("(").append(inner).append(RcDoc::text(")"))
+          }
+          _ => inner,
+        }
+      }
+      Dist::Pred(d1, d2, op) => RcDoc::text("[")
+        .append(d1.to_doc())
+        .append(Doc::space())
+        .append(RcDoc::as_string(format!("{}", op)))
+        .append(Doc::space())
+        .append(d2.to_doc())
+        .append(RcDoc::text("]")),
+      Dist::Distr(x, d) => RcDoc::text("(Λ")
+        .append(x.to_doc())
+        .append(RcDoc::text("."))
+        .append(RcDoc::line().append(d.to_doc()).nest(1).group())
+        .append(RcDoc::text(")")),
+      Dist::Func(x, d) => RcDoc::text("(λ")
+        .append(x.to_doc())
+        .append(RcDoc::text("."))
+        .append(RcDoc::line().append(d.to_doc()).nest(1).group())
+        .append(RcDoc::text(")")),
+      Dist::Integral(x, d) => RcDoc::text("(∫d")
+        .append(x.to_doc())
+        .append(RcDoc::line().append(d.to_doc()).nest(1).group())
+        .append(RcDoc::text(")")),
+      Dist::Delta(d, x) => RcDoc::text("δ(")
+        .append(d.to_doc())
+        .append(RcDoc::text(")⟦"))
+        .append(x.to_doc())
+        .append(RcDoc::text("⟧")),
+      Dist::Pdf(d, x) => d
+        .to_doc()
+        .append(RcDoc::text("⟦"))
+        .append(x.to_doc())
+        .append(RcDoc::text("⟧")),
+      Dist::Record(h) => RcDoc::text("{")
+        .append(RcDoc::intersperse(
+          h.iter()
+            .map(|(k, v)| k.to_doc().append(": ").append(v.to_doc())),
+          RcDoc::text(", "),
+        ))
+        .append(RcDoc::text("}")),
+      Dist::Proj(d, x) => {
+        d.to_doc().append(RcDoc::text(".")).append(x.to_doc())
+      }
+      Dist::RecSet(d1, x, d2) => d1
+        .to_doc()
+        .append(RcDoc::text("["))
+        .append(x.to_doc())
+        .append(RcDoc::text("↦"))
+        .append(d2.to_doc())
+        .append(RcDoc::text("]")),
+      Dist::App(d1, d2) => {
+        d1.to_doc().append(RcDoc::space()).append(d2.to_doc())
+      }
+      _ => todo!("{:?}", self),
+    }
+  }
+
+  pub fn to_pretty(&self, width: usize) -> String {
+    let mut w = Vec::new();
+    self.to_doc().render(width, &mut w).unwrap();
+    String::from_utf8(w).unwrap()
+  }
+
   // pub fn aequiv(&self, other: &Dist) -> bool {
   //   use Dist::*;
   //   match self {
@@ -519,46 +598,6 @@ impl Dist {
 
 impl fmt::Display for Dist {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self {
-      Dist::DVar(v) => v.fmt(f),
-      Dist::Rat(rat) => write!(f, "{}", rat),
-      Dist::Func(var, d) => write!(f, "(λ{}. {})", var, d),
-      Dist::Distr(var, d) => write!(f, "(Λ{}. {})", var, d),
-      Dist::Delta(d, var) => write!(f, "δ({})⟦{}⟧", d, var),
-      Dist::Pdf(d, var) => write!(f, "{}⟦{}⟧", d, var),
-      Dist::Integral(var, d) => write!(f, "(∫d{} {})", var, d),
-      Dist::Bin(d1, d2, op) => match op {
-        BinOp::Add | BinOp::Sub => write!(f, "({} {} {})", d1, op, d2),
-        _ => write!(f, "{} {} {}", d1, op, d2),
-      },
-      Dist::App(d1, d2) => write!(f, "{}({})", d1, d2),
-      Dist::Tuple(ds) => {
-        write!(f, "(")?;
-        for d in ds.iter().take(ds.len() - 1) {
-          write!(f, "{}, ", d)?;
-        }
-        if ds.len() > 0 {
-          write!(f, "{}", ds.last().unwrap())?;
-        }
-        write!(f, ")")
-      }
-      Dist::Proj(d, x) => write!(f, "{}.{}", d, x),
-      Dist::Record(h) => {
-        write!(f, "{{")?;
-        let kvs = h.iter().collect::<Vec<_>>();
-        if kvs.len() > 0 {
-          for (k, v) in kvs.iter().take(kvs.len() - 1) {
-            write!(f, "{}: {}, ", k, v)?;
-          }
-          let (k, v) = kvs.last().unwrap();
-          write!(f, "{}: {}", k, v)?;
-        }
-        write!(f, "}}")
-      }
-      Dist::Lebesgue(x) => write!(f, "λ⟦{}⟧", x),
-      Dist::Pred(d1, d2, op) => write!(f, "[{} {} {}]", d1, op, d2),
-      Dist::RecSet(d1, x, d2) => write!(f, "{}[{}↦{}]", d1, x, d2),
-      _ => todo!(),
-    }
+    write!(f, "{}", self.to_pretty(200))
   }
 }

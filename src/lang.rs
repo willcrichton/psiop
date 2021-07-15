@@ -1,4 +1,5 @@
 use num::BigRational;
+use pretty::RcDoc;
 use regex::Regex;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -53,6 +54,10 @@ impl Var {
       }
     });
     Var::new(s)
+  }
+
+  pub fn to_doc(&self) -> RcDoc<()> {
+    RcDoc::as_string(format!("{}", self))
   }
 }
 

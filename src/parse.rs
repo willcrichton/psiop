@@ -35,8 +35,10 @@ pub enum Token<'a> {
   #[token(".")] Dot,
   #[token("∫")] Integral,
   #[token("↦")] Mapsto,
+  #[token("if")] If,
+  #[token("else")] Else,
 
-  #[regex("[a-zA-ZͰ-Ͽ&&[^λΛδ∫]][a-zA-ZͰ-Ͽ0-9]*'*", |lex| lex.slice())]
+  #[regex("[a-zA-ZͰ-Ͽ&&[^λΛδ∫]][a-zA-ZͰ-Ͽ0-9_]*'*", |lex| lex.slice())]
   Ident(&'a str),
 
   #[regex("[0-9]+", |lex| {
@@ -157,6 +159,8 @@ peg::parser! {grammar rpsi_parser<'t>() for [Token<'t>] {
   pub rule stmt() -> Stmt = precedence! {
     s1:@ [Semi] s2:(@) { Stmt::Seq(box s1, box s2) }
     --
+    [If] e:expr() [Lbrc] s1:stmt() [Rbrc] [Else] [Lbrc] s2:stmt() [Rbrc]
+      { Stmt::If(e, box s1, box s2) }
     [Observe] [Lparen] e:expr() [Rparen] { Stmt::Observe(e) }
     x:var() [Assign] e:expr() { Stmt::Init(x, e) }
   }
