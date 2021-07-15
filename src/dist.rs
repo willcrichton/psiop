@@ -340,7 +340,7 @@ pub trait Folder {
   fn super_fold_record(&mut self, h: &HashMap<Var, Dist>) -> Dist {
     Dist::Record(
       h.iter()
-        .map(|(k, v)| (self.fold_var(*k), self.fold(v)))
+        .map(|(k, v)| (*k, self.fold(v)))
         .collect(),
     )
   }
@@ -366,7 +366,7 @@ pub trait Folder {
   }
 
   fn super_fold_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) -> Dist {
-    Dist::RecSet(box self.fold(d1), self.fold_var(x), box self.fold(d2))
+    Dist::RecSet(box self.fold(d1), x, box self.fold(d2))
   }
 
   fn fold(&mut self, d: &Dist) -> Dist {
@@ -439,7 +439,13 @@ impl Folder for Subst {
       d.clone()
     } else if self.fv.contains(&x) {
       let xp = x.fresh();
-      self.super_fold_binder(xp, &d.subst(x, Dist::DVar(xp)))
+      let d2 = match d {
+        Dist::Func(_, d) => Dist::Func(xp, box d.subst(x, Dist::DVar(xp))),
+        Dist::Distr(_, d) => Dist::Distr(xp, box d.subst(x, Dist::DVar(xp))),
+        Dist::Integral(_, d) => Dist::Integral(xp, box d.subst(x, Dist::DVar(xp))),
+        _ => unreachable!()
+      };
+      self.super_fold_binder(xp, &d2)
     } else {
       self.super_fold_binder(x, d)
     }
@@ -450,10 +456,10 @@ impl Dist {
   pub fn is_value(&self, bv: &BoundVars) -> bool {
     use Dist::*;
     match self {
-      DVar(v) => bv.is_bound(*v),
+      DVar(v) => !bv.is_bound(*v),
       Rat(..) | Func(..) | Distr(..) => true,
       Tuple(ds) => ds.iter().all(|d| d.is_value(bv)),
-      Bin(d1, d2, _) => d1.is_value(bv) && d2.is_value(bv),
+      Bin(d1, d2, _) | Pred(d1, d2, _) => d1.is_value(bv) && d2.is_value(bv),
       Record(h) => h.values().all(|d| d.is_value(bv)),
       _ => false,
     }
@@ -521,9 +527,10 @@ impl fmt::Display for Dist {
       Dist::Delta(d, var) => write!(f, "δ({})⟦{}⟧", d, var),
       Dist::Pdf(d, var) => write!(f, "{}⟦{}⟧", d, var),
       Dist::Integral(var, d) => write!(f, "(∫d{} {})", var, d),
-      Dist::Bin(d1, d2, op) => {
-        write!(f, "{} {} {}", d1, op, d2)
-      }
+      Dist::Bin(d1, d2, op) => match op {
+        BinOp::Add | BinOp::Sub => write!(f, "({} {} {})", d1, op, d2),
+        _ => write!(f, "{} {} {}", d1, op, d2),
+      },
       Dist::App(d1, d2) => write!(f, "{}({})", d1, d2),
       Dist::Tuple(ds) => {
         write!(f, "(")?;
@@ -544,13 +551,13 @@ impl fmt::Display for Dist {
             write!(f, "{}: {}, ", k, v)?;
           }
           let (k, v) = kvs.last().unwrap();
-          write!(f, "{}: {})", k, v)?;
+          write!(f, "{}: {}", k, v)?;
         }
         write!(f, "}}")
       }
       Dist::Lebesgue(x) => write!(f, "λ⟦{}⟧", x),
       Dist::Pred(d1, d2, op) => write!(f, "[{} {} {}]", d1, op, d2),
-      Dist::RecSet(d1, x, d2) => write!(f, "{}{{{}↦{}}}", d1, x, d2),
+      Dist::RecSet(d1, x, d2) => write!(f, "{}[{}↦{}]", d1, x, d2),
       _ => todo!(),
     }
   }

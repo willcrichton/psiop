@@ -15,6 +15,7 @@ num = "0.4"
 maplit = "1"
 peg = "0.7"
 logos = "0.12"
+regex = "1.5"
 
 [profile.release]
 debug = true

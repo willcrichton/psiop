@@ -96,7 +96,7 @@ impl Stmt {
         dparse!("∫dσ1 ({})(σ)⟦σ1⟧ · ({})(σ1)⟦σ2⟧", s1.infer(), s2.infer()),
       ),
       Stmt::Init(x, e) => {
-        let xp = v(format!("{}'", x));
+        let xp = v(format!("{}1", x));
         (
           v("σ1"),
           dparse!(

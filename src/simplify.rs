@@ -1,5 +1,6 @@
 use crate::dist::{Dist, Dist::*, Folder, Visitor};
-use crate::lang::{v, BinOp, BoundVars, Var};
+use crate::lang::{v, BinOp, PredOp, BoundVars, Var};
+use num::Zero;
 
 struct FindConstDelta {
   val: Option<Dist>,
@@ -46,10 +47,9 @@ impl Folder for DeltaSubst {
   fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
     let xp = v(format!("{}'", x));
     let dp = d.subst(x, DVar(xp));
-    let mut bv = self.bv.clone();
-    bv.bind(xp);
+
     let mut finder = FindConstDelta {
-      bv,
+      bv: BoundVars::default(),
       val: None,
       var: xp,
     };
@@ -242,6 +242,33 @@ impl Folder for PartialEval {
       _ => self.super_fold_bin(d1, d2, op),
     }
   }
+
+  fn fold_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) -> Dist {
+    (match (d1, d2) {
+      (Rat(n), d) | (d, Rat(n)) if n.is_zero() => match op {
+        PredOp::Neq => Some(d.clone()),
+        _ => None,
+      },
+      _ => None,
+    })
+    .unwrap_or_else(|| self.super_fold_pred(d1, d2, op))
+  }
+}
+
+struct PushdownMul;
+impl Folder for PushdownMul {
+  fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
+    match (op, (d1, d2)) {
+      (BinOp::Mul, (Integral(x, di), d) | (d, Integral(x, di)))
+        if !d.free_vars().contains(x) =>
+      {
+        let dp = Integral(*x, box Bin(di.clone(), box d.clone(), BinOp::Mul));
+        println!("  {} {} {}\n->\n  {}\n", d1, op, d2, dp);
+        self.fold(&dp)
+      }
+      _ => self.super_fold_bin(d1, d2, op),
+    }
+  }
 }
 
 impl Dist {
@@ -250,7 +277,8 @@ impl Dist {
       let passes: Vec<(&'static str, Box<dyn Folder>)> = vec![
         ("partial", box PartialEval),
         ("delta", box DeltaSubst::default()),
-        ("linearize", box Linearize),
+        ("pushdown", box PushdownMul),
+        // ("linearize", box Linearize),
       ];
       passes.into_iter().fold(init, |d, (name, mut pass)| {
         let d2 = pass.fold(&d);
@@ -275,13 +303,14 @@ impl Dist {
 mod test {
   use super::*;
   use crate::dparse;
+  use crate::lang::Expr;
+  use crate::parse::Parse;
 
-  fn check_pass<T: Folder>(tests: Vec<(&str, &str)>, mk_pass: impl Fn() -> T) {
+  fn check_pass(tests: Vec<(&str, &str)>, f: impl Fn(&Dist) -> Dist) {
     for (input, desired_output) in tests {
       let (input, desired_output) =
         (dparse!("{}", input), dparse!("{}", desired_output));
-      let mut pass = mk_pass();
-      let actual_output = pass.fold(&input);
+      let actual_output = f(&input);
       assert_eq!(
         actual_output, desired_output,
         "actual: {}, desired: {}",
@@ -296,7 +325,10 @@ mod test {
       ("∫dn n * δ(1)⟦n⟧", "1"),
       ("∫dn (∫dx x * n) * δ(1)⟦n⟧", "∫dx x * 1"),
     ];
-    check_pass(tests, || DeltaSubst::default());
+    check_pass(tests, |dist| {
+      let mut pass = DeltaSubst::default();
+      pass.fold(dist)
+    });
   }
 
   #[test]
@@ -309,6 +341,30 @@ mod test {
       ("(Λx.x)⟦y⟧", "y"),
       ("(λx.x)1", "1"),
     ];
-    check_pass(tests, || PartialEval)
+    check_pass(tests, |dist| {
+      let mut pass = PartialEval;
+      pass.fold(dist)
+    });
   }
+
+  #[test]
+  fn test_linearize() {
+    let tests = vec![("δ(x)⟦y⟧ * λ⟦x⟧", "λ⟦y⟧ * δ(y)⟦x⟧ ")];
+    check_pass(tests, |dist| {
+      let mut pass = Linearize;
+      pass.fold(dist)
+    });
+  }
+
+  // #[test]
+  // fn test_simplify() {
+  //   fn edist(s: &str) -> String {
+  //     format!("{}", Expr::parse(s).unwrap().infer())
+  //   }
+
+  //   let t1 = edist("2 + uniform(0, 3)");
+
+  //   let tests = vec![(t1.as_str(), "λσ. Λx. 1/3 * [0 ≤ x - 2] * [x - 2 ≤ 3] * λ⟦x⟧")];
+  //   check_pass(tests, |dist| dist.simplify());
+  // }
 }

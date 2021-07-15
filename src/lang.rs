@@ -1,4 +1,5 @@
 use num::BigRational;
+use regex::Regex;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -30,11 +31,23 @@ impl Var {
   pub fn fresh(&self) -> Var {
     let s = INTERNER.with(|interner| {
       let interner = interner.borrow();
-      let mut i = 1;
+      let re = Regex::new(r"^(.+)(\d*)$").unwrap();
+      let caps = re.captures(interner.resolve(self.0).unwrap()).unwrap();
+      let (s, mut i) = (
+        caps.get(1).unwrap().as_str(),
+        caps
+          .get(2)
+          .unwrap()
+          .as_str()
+          .parse::<usize>()
+          .map(|i| i + 1)
+          .unwrap_or(1),
+      );
+
       loop {
-        let s = format!("{}{}", self, i);
-        if interner.get(&s).is_none() {
-          return s;
+        let s2 = format!("{}{}", s, i);
+        if interner.get(&s2).is_none() {
+          return s2;
         }
         i += 1;
       }
@@ -60,6 +73,22 @@ impl fmt::Display for Var {
 impl fmt::Debug for Var {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "Var({})", self)
+  }
+}
+
+#[derive(Default, Clone)]
+pub struct BoundVars(HashMap<Var, usize>);
+impl BoundVars {
+  pub fn bind(&mut self, x: Var) {
+    *self.0.entry(x).or_insert(0) += 1;
+  }
+
+  pub fn unbind(&mut self, x: Var) {
+    *self.0.entry(x).or_insert(0) -= 1;
+  }
+
+  pub fn is_bound(&self, x: Var) -> bool {
+    self.0.contains_key(&x)
   }
 }
 
@@ -138,19 +167,3 @@ pub enum Stmt {
 }
 
 pub type Prog = Vec<Stmt>;
-
-#[derive(Default, Clone)]
-pub struct BoundVars(HashMap<Var, usize>);
-impl BoundVars {
-  pub fn bind(&mut self, x: Var) {
-    *self.0.entry(x).or_insert(0) += 1;
-  }
-
-  pub fn unbind(&mut self, x: Var) {
-    *self.0.entry(x).or_insert(0) -= 1;
-  }
-
-  pub fn is_bound(&self, x: Var) -> bool {
-    self.0.contains_key(&x)
-  }
-}
