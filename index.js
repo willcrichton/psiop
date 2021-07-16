@@ -33067,7 +33067,7 @@ var App = () => {
   }, /* @__PURE__ */ import_react20.default.createElement("h1", {
     className: "text-3xl mb-4"
   }, "Psiop demo"), /* @__PURE__ */ import_react20.default.createElement(ExampleSelector, null), /* @__PURE__ */ import_react20.default.createElement("div", {
-    className: "grid grid-cols-2"
+    className: "grid grid-cols-1 lg:grid-cols-2"
   }, /* @__PURE__ */ import_react20.default.createElement("div", null, /* @__PURE__ */ import_react20.default.createElement(Editor_default2, {
     height: "90vh",
     defaultValue: EXAMPLES[0].program,
