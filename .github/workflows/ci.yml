@@ -6,7 +6,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           target: wasm32-unknown-unknown
       - uses: jetli/wasm-pack-action@v0.3.0
       - run: cd site && wasm-pack build .
