@@ -4,7 +4,7 @@ import Editor from "@monaco-editor/react";
 import Select from "react-select";
 import _ from "lodash";
 
-import * as wasm from "rpsi-wasm";
+import * as wasm from "psiop-wasm";
 import "../index.css";
 
 const EXAMPLES = [
@@ -49,7 +49,7 @@ let App = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl mb-4">rPSI demo</h1>
+      <h1 className="text-3xl mb-4">Psiop demo</h1>
       <ExampleSelector />
       <div className="grid grid-cols-2">
         <div>

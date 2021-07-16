@@ -1,7 +1,7 @@
 #![feature(box_syntax)]
 
 use wasm_bindgen::prelude::*;
-use rpsi::{Parse, Dist, Stmt};
+use psiop::{Parse, Dist, Stmt};
 use std::collections::HashMap;
 
 /* 

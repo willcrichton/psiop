@@ -24,8 +24,8 @@ jobs:
           override: true
       - uses: jetli/wasm-pack-action@v0.3.0
       - run: cd site && wasm-pack build .
-      - run: cd www && npm install && node build.mjs
+      - run: cd site/www && npm install && node build.mjs
       - uses: JamesIves/github-pages-deploy-action@4.1.4
         with:
           branch: gh-pages
-          folder: build
+          folder: site/www/build

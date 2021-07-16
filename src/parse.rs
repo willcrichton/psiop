@@ -76,7 +76,7 @@ impl PredOp {
   }
 }
 
-peg::parser! {grammar rpsi_parser<'t>() for [Token<'t>] {
+peg::parser! {grammar psiop_parser<'t>() for [Token<'t>] {
   use Token::*;
   rule var() -> Var = [Ident(v)] { Var::new(v) }
   rule predop() -> PredOp = op:$([Eq] / [Neq] / [Le] / [Leq]) {
@@ -208,19 +208,19 @@ pub trait Parse: Sized {
 
 impl Parse for Expr {
   fn parse_tokens<'a>(tokens: &[Token<'a>]) -> Result<Self, ParseError<usize>> {
-    rpsi_parser::expr(tokens)
+    psiop_parser::expr(tokens)
   }
 }
 
 impl Parse for Stmt {
   fn parse_tokens<'a>(tokens: &[Token<'a>]) -> Result<Self, ParseError<usize>> {
-    rpsi_parser::stmt(tokens)
+    psiop_parser::stmt(tokens)
   }
 }
 
 impl Parse for Dist {
   fn parse_tokens<'a>(tokens: &[Token<'a>]) -> Result<Self, ParseError<usize>> {
-    rpsi_parser::dist(tokens)
+    psiop_parser::dist(tokens)
   }
 }
 
