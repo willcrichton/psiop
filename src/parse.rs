@@ -13,7 +13,8 @@ pub enum Token<'a> {
   #[token("+")] Add,
   #[token("-")] Sub,
   #[regex("[·*]")] Mul,
-  #[token("/")] Div,
+  #[token("÷")] Div,
+  #[token("/")] RatDiv,
   #[token("⟦")] Ldbl,
   #[token("⟧")] Rdbl,
   #[token("[")] Lsqr,
@@ -37,6 +38,7 @@ pub enum Token<'a> {
   #[token("↦")] Mapsto,
   #[token("if")] If,
   #[token("else")] Else,
+  #[token("return")] Return,
 
   #[regex("[a-zA-ZͰ-Ͽ&&[^λΛδ∫]][a-zA-ZͰ-Ͽ0-9_]*'*", |lex| lex.slice())]
   Ident(&'a str),
@@ -46,7 +48,9 @@ pub enum Token<'a> {
   })]
   Number(BigRational),
 
-  #[regex(r"[ \t\n\f]+", logos::skip)]
+  #[regex("//[^\n$]*[\n$]", logos::skip, priority = 2)]
+  Comment,
+  #[regex(r"[ \t\n\f]+", logos::skip, priority = 1)]
   Whitespace,
   #[error]
   Error,
@@ -57,7 +61,7 @@ impl BinOp {
     match token {
       Token::Add => BinOp::Add,
       Token::Sub => BinOp::Sub,
-      Token::Div => BinOp::Div,
+      Token::Div | Token::RatDiv => BinOp::Div,
       Token::Mul => BinOp::Mul,
       _ => unreachable!(),
     }
@@ -105,6 +109,8 @@ peg::parser! {grammar psiop_parser<'t>() for [Token<'t>] {
     d:(@) [Dot] [Number(n)]
       { Dist::Proj(box d, Var::new(format!("{}", n))) }
     --
+    [Number(n1)] [RatDiv] [Number(n2)]
+      { Dist::Rat(n1/n2) }
     [Lbrc] rs:record_entry() ** [Comma] [Rbrc]
       { Dist::Record(rs.into_iter().collect()) }
     [Delta] [Lparen] d:dist() [Rparen] [Ldbl] x:var() [Rdbl]
@@ -135,16 +141,16 @@ peg::parser! {grammar psiop_parser<'t>() for [Token<'t>] {
   }
 
   pub rule expr() -> Expr = precedence! {
+    e1:(@) op:predop() e2:@ {
+      Expr::Pred(box e1, box e2, op)
+    }
+    --
     e1:(@) op:$([Add] / [Sub]) e2:@ {
       Expr::Bin(box e1, box e2, BinOp::from_token(&op[0]))
     }
     --
-    e1:(@) op:$([Mul] / [Div]) e2:@ {
+    e1:(@) op:$([Mul] / [RatDiv]) e2:@ {
       Expr::Bin(box e1, box e2, BinOp::from_token(&op[0]))
-    }
-    --
-    e1:(@) op:predop() e2:@ {
-      Expr::Pred(box e1, box e2, op)
     }
     --
     e1:(@) () e2:@ { Expr::App(box e1, box e2) }
@@ -162,6 +168,7 @@ peg::parser! {grammar psiop_parser<'t>() for [Token<'t>] {
     [If] e:expr() [Lbrc] s1:stmt() [Rbrc] [Else] [Lbrc] s2:stmt() [Rbrc]
       { Stmt::If(e, box s1, box s2) }
     [Observe] [Lparen] e:expr() [Rparen] { Stmt::Observe(e) }
+    [Return] e:expr() { Stmt::Return(e) }
     x:var() [Assign] e:expr() { Stmt::Init(x, e) }
   }
 }}

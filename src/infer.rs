@@ -12,7 +12,7 @@ fn rec(d: Dist, s: Var, v: Var) -> Box<Dist> {
 lazy_static! {
   static ref PRELUDE: HashMap<Var, Dist> = {
     hashmap! {
-      v("uniform") => dparse!("λt. Λx. 1 / (t.1 - t.0) * [t.0 ≤ x] * [x ≤ t.1] * λ⟦x⟧"),
+      v("uniform") => dparse!("λt. Λx. 1 ÷ (t.1 - t.0) * [t.0 ≤ x] * [x ≤ t.1] * λ⟦x⟧"),
       v("flip") => dparse!("λp. Λx. p * δ(0)⟦x⟧ + (1 - p) * δ(1)⟦x⟧")
     }
   };
@@ -121,6 +121,9 @@ impl Stmt {
           s2.infer()
         ),
       ),
+      Stmt::Return(e) => {
+        (v("z"), dparse!("{}(σ)⟦z⟧", e.infer()))
+      }
       _ => todo!("{:?}", self),
     };
 

@@ -1,7 +1,9 @@
 use crate::dist::{Dist, Dist::*, Folder, Visitor};
 use crate::dparse;
 use crate::lang::{BinOp, BoundVars, PredOp, Var};
-use num::{One, Zero};
+use num::{BigRational, One, Zero};
+use std::cmp;
+use std::collections::HashMap;
 
 enum FindConstDeltaState {
   NotFound,
@@ -24,11 +26,13 @@ impl Folder for FindConstDelta {
       ($d:expr, $other:expr) => {
         match $d {
           Delta(box d3, x) => {
-            if *x == self.var && d3.is_value(&self.bv) {
+            if *x == self.var {
               use FindConstDeltaState::*;
-              self.state = match self.state {
-                NotFound => Found(d3.clone()),
-                Found(_) | FoundTwice => FoundTwice,
+              self.state = match (d3.is_value(&self.bv), &self.state) {
+                (false, _) => FoundTwice,
+                (true, NotFound) => Found(d3.clone()),
+                (true, Found(d3p)) if d3 == d3p => Found(d3.clone()),
+                (_, Found(_) | FoundTwice) => FoundTwice,
               };
               return $other.clone();
             }
@@ -97,14 +101,14 @@ impl Folder for DeltaSubst {
         //   d2,
         //   d_fold.subst(*x, d2.clone())
         // );
+        println!("test: {}", d_fold);
+        let base = self.fold(&d_fold.subst(*x, d2));
         return collector
           .vars
           .iter()
           .enumerate()
           .filter(|(j, _)| *j != i)
-          .fold(self.fold(&d_fold.subst(*x, d2)), |d, (_, x)| {
-            Integral(*x, box d)
-          });
+          .fold(base, |d, (_, x)| Integral(*x, box d));
       }
     }
 
@@ -275,6 +279,10 @@ impl Folder for PartialEval {
     }
   }
 
+  // TODO: generalize this to CollectBinops
+  // TODO: make Collect* pattern and corresponding filter/partition/etc.
+  //   a more structured pattern
+
   fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
     (match (d1, d2) {
       (Rat(n1), Rat(n2)) => Some(match op {
@@ -283,6 +291,7 @@ impl Folder for PartialEval {
         BinOp::Mul => Rat(n1 * n2),
         BinOp::Div => Rat(n1 / n2),
       }),
+      (d, Rat(n)) if n.is_one() && op == BinOp::Div => Some(d.clone()),
       (Rat(n), d) | (d, Rat(n)) => {
         if n.is_zero() {
           match op {
@@ -317,6 +326,15 @@ impl Folder for PartialEval {
       }
       (Rat(n), d) | (d, Rat(n)) if n.is_zero() => match op {
         PredOp::Neq => Some(d.clone()),
+        PredOp::Eq => match d {
+          Pred(d1p, d2p, op_p) => Some(match op_p {
+            PredOp::Leq => Pred(d2p.clone(), d1p.clone(), PredOp::Le),
+            PredOp::Le => Pred(d2p.clone(), d1p.clone(), PredOp::Leq),
+            PredOp::Eq => Pred(d1p.clone(), d2p.clone(), PredOp::Neq),
+            PredOp::Neq => Pred(d1p.clone(), d2p.clone(), PredOp::Eq),
+          }),
+          _ => None,
+        },
         _ => None,
       },
       _ => None,
@@ -327,6 +345,62 @@ impl Folder for PartialEval {
   fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
     match d {
       Rat(n) if n.is_zero() => Rat(n.clone()),
+      Bin(d1, d2, BinOp::Mul) => {
+        let pass = || {
+          let mut collector = CollectBinops {
+            args: Vec::new(),
+            op: BinOp::Mul,
+          };
+          collector.visit(d1);
+          collector.visit(d2);
+
+          let (preds, dists): (Vec<_>, Vec<_>) =
+            collector.args.into_iter().partition(|d| match d {
+              Pred(..) => true,
+              _ => false,
+            });
+
+          // println!("preds: {:?}\n dists: {:?}", preds, dists);
+          
+          if preds.len() != 2 {
+            return None;
+          }
+
+          let mut range = Range::all();
+          for pred in preds.into_iter() {
+            match pred {
+              Pred(box DVar(xp), box Rat(n), PredOp::Leq) if x == xp => {
+                range = range.bound(&n, false);
+              }
+              Pred(box Rat(n), box DVar(xp), PredOp::Leq) if x == xp => {
+                range = range.bound(&n, true);
+              }
+              _ => { return None; }
+            }
+          }
+
+          let (lower, upper) = match (range.0, range.1) {
+            (Some(l), Some(u)) => (l, u),
+            _ => { return None; }
+          };
+
+          let vals = dists.into_iter().map(|d| {
+            match d {
+              Lebesgue(xp) if x == xp =>  {
+                Some(Rat(&upper - &lower))
+              }
+              d if !d.free_vars().contains(&x) => {
+                Some(d)
+              }
+              _ => None
+            }
+          }).collect::<Option<Vec<_>>>()?;
+                  
+          Some(Dist::bin_many(vals, BinOp::Mul))
+        };
+
+        pass().unwrap_or_else(|| self.super_fold_integral(x, d))
+      }
       _ => self.super_fold_integral(x, d),
     }
   }
@@ -388,6 +462,122 @@ impl Folder for Rewrite {
   }
 }
 
+#[derive(Debug)]
+struct Range(Option<BigRational>, Option<BigRational>);
+impl Range {
+  pub fn all() -> Self {
+    Range(None, None)
+  }
+
+  pub fn bound(&self, n: &BigRational, is_lower: bool) -> Self {
+    if is_lower {
+      Range(
+        self
+          .0
+          .clone()
+          .map(|lower| cmp::max(n.clone(), lower))
+          .or_else(|| Some(n.clone())),
+        self.1.clone(),
+      )
+    } else {
+      Range(
+        self.0.clone(),
+        self
+          .1
+          .clone()
+          .map(|upper| cmp::min(n.clone(), upper))
+          .or_else(|| Some(n.clone())),
+      )
+    }
+  }
+}
+
+struct SimplifyGuards;
+impl Folder for SimplifyGuards {
+  fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
+    let pass = move || {
+      if op != BinOp::Mul {
+        return None;
+      }
+      let mut collector = CollectBinops {
+        args: Vec::new(),
+        op,
+      };
+      collector.visit(d1);
+      collector.visit(d2);
+
+      let args = collector.args;
+      let guards = args
+        .iter()
+        .enumerate()
+        .filter_map(|(i, d)| match d {
+          Pred(box d1, box d2, op) => Some((i, d1, d2, *op)),
+          _ => None,
+        })
+        .collect::<Vec<_>>();
+
+      let inequalities = guards
+        .iter()
+        .filter(|(_, _, _, op)| match op {
+          PredOp::Leq | PredOp::Le => true,
+          _ => false,
+        })
+        .collect::<Vec<_>>();
+
+      if inequalities.len() == 0 {
+        return None;
+      }
+
+      let mut ranges = HashMap::new();
+      for (_, d1, d2, _) in inequalities.iter() {
+        match (d1, d2) {
+          (DVar(v), Rat(n)) => {
+            let range = ranges.entry(*v).or_insert_with(|| Range::all());
+            // println!("{{:?}} lower {} -> {:?}", range, n, range.bound(n, false));
+            *range = range.bound(n, false);
+          }
+          (Rat(n), DVar(v)) => {
+            let range = ranges.entry(*v).or_insert_with(|| Range::all());
+            *range = range.bound(n, true);
+          }
+          _ => {
+            return None;
+          }
+        }
+      }
+
+      Some(Dist::bin_many(
+        ranges
+          .into_iter()
+          .map(|(v, range)| match (range.0, range.1) {
+            (Some(lower), Some(upper)) => {
+              dparse!(
+                "[{lower} ≤ {v}] * [{v} ≤ {upper}]",
+                v = v,
+                lower = lower,
+                upper = upper
+              )
+            }
+            (Some(lower), None) => dparse!("[{} ≤ {}]", lower, v),
+            (None, Some(upper)) => dparse!("[{} ≤ {}]", v, upper),
+            (None, None) => unreachable!(),
+          })
+          .chain(args.iter().enumerate().filter_map(|(i, d)| {
+            inequalities
+              .iter()
+              .find(|(j, _, _, _)| *j == i)
+              .is_none()
+              .then(|| d.clone())
+          }))
+          .collect(),
+        BinOp::Mul,
+      ))
+    };
+
+    pass().unwrap_or_else(|| self.super_fold_bin(d1, d2, op))
+  }
+}
+
 impl Dist {
   pub fn simplify(&self) -> Dist {
     let run_passes = |init| {
@@ -395,7 +585,7 @@ impl Dist {
         ("partial", box PartialEval),
         ("delta", box DeltaSubst::default()),
         ("rewrite", box Rewrite),
-        // ("linearize", box Linearize),
+        ("guards", box SimplifyGuards), // ("linearize", box Linearize),
       ];
       passes.into_iter().fold(init, |d, (name, mut pass)| {
         let d2 = pass.fold(&d);

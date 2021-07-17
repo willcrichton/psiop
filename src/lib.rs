@@ -11,31 +11,31 @@ pub use lang::{Expr, Stmt};
 pub use dist::Dist;
 pub use parse::Parse;
 
-// use dist::Dist;
-// use lang::{Expr, Stmt};
-// use parse::Parse;
-// use std::collections::HashMap;
+use std::collections::HashMap;
 
-// fn main() {
-//   let s = Stmt::parse(
-//     r#"
-// has_cancer := Bernoulli(1/1000); 
-// if has_cancer {
-//   p_test_positive := 9/10
-// } else {
-//   p_test_positive := 1/10
-// };
-// test_positive := Bernoulli(p_test_positive)
-// "#,
-//   )
-//   .unwrap();
-//   println!("stmt: {:?}", s);
-//   // let s = Expr::parse("2 + uniform(0, 3)").unwrap();
-//   // println!("expr: {:?}", s);
+#[test]
+fn tmp() {
+  let s = Stmt::parse(r#"
+  p := uniform(0, 1);
+if p ≤ 80/100 {
+  song := 1;
+  p_h := 5/10
+} else {
+  if p ≤ 95/100 {
+    song := 2;
+    p_h := 9/10
+  } else {
+    song := 3;
+    p_h := 3/10
+  }
+};
+observe(flip(p_h) = 1);
+return song"#).unwrap();
+  println!("stmt: {:?}\n", s);
 
-//   let d = Dist::App(box s.infer(), box Dist::Record(HashMap::new()));
-//   println!("initial: {}", d);
+  let d = Dist::App(box s.infer(), box Dist::Record(HashMap::new()));
+  println!("initial: {}\n", d);
 
-//   let d2 = d.simplify();
-//   println!("simplified: {}", d2);
-// }
+  let d2 = d.simplify();
+  println!("simplified: {}", d2);
+}

@@ -7,6 +7,8 @@ import _ from "lodash";
 import * as wasm from "psiop-wasm";
 import "../index.css";
 
+wasm.init();
+
 const EXAMPLES = [
   {
     label: "Cancer",
@@ -18,6 +20,23 @@ if has_cancer {
 };
 test_positive := flip(p_test_positive)`,
   },
+  {
+    label: "Shazam",
+    program: `p := uniform(0, 1);
+if p ≤ 80/100 {
+  song := 1;
+  p_h := 5/10
+} else {
+  if p ≤ 95/100 {
+    song := 2;
+    p_h := 9/10
+  } else {
+    song := 3;
+    p_h := 3/10
+  }
+};
+observe(flip(p_h) = 1)`
+  }
 ];
 
 let App = () => {

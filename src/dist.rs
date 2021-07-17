@@ -498,7 +498,8 @@ impl Dist {
           .append(Doc::line())
           .append(RcDoc::as_string(format!("{}", op)))
           .append(Doc::space())
-          .append(d2.to_doc().group());
+          .append(d2.to_doc().group())
+          .group();
         match op {
           BinOp::Add | BinOp::Sub => {
             RcDoc::text("(").append(inner).append(RcDoc::text(")"))
@@ -557,6 +558,15 @@ impl Dist {
       Dist::App(d1, d2) => {
         d1.to_doc().append(RcDoc::space()).append(d2.to_doc())
       }
+      Dist::Lebesgue(x) => RcDoc::text("λ⟦")
+        .append(x.to_doc())
+        .append(RcDoc::text("⟧")),
+      Dist::Tuple(ds) => RcDoc::text("(")
+        .append(
+          RcDoc::intersperse(ds.iter().map(|d| d.to_doc()), RcDoc::text(", "))
+            .group(),
+        )
+        .append(RcDoc::text(")")),
       _ => todo!("{:?}", self),
     }
   }

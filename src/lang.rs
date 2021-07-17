@@ -121,7 +121,7 @@ impl fmt::Display for BinOp {
     match self {
       BinOp::Add => write!(f, "+"),
       BinOp::Mul => write!(f, "*"),
-      BinOp::Div => write!(f, "/"),
+      BinOp::Div => write!(f, "÷"),
       BinOp::Sub => write!(f, "-"),
     }
   }
@@ -169,6 +169,7 @@ pub enum Stmt {
   If(Expr, Box<Stmt>, Box<Stmt>),
   Observe(Expr),
   Seq(Box<Stmt>, Box<Stmt>),
+  Return(Expr)
 }
 
 pub type Prog = Vec<Stmt>;
