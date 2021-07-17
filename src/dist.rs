@@ -192,6 +192,10 @@ pub trait Visitor {
   }
 
   fn visit(&mut self, d: &Dist) {
+    self.super_visit(d)
+  }
+
+  fn super_visit(&mut self, d: &Dist) {
     match d {
       Dist::DVar(v) => self.visit_dvar(*v),
       Dist::Rat(rat) => self.visit_rat(rat),
@@ -230,47 +234,47 @@ pub trait Folder {
     Dist::DVar(self.fold_var(v))
   }
 
-  fn fold_rat(&mut self, rat: &BigRational) -> Dist {
+  fn fold_rat(&mut self, rat: BigRational) -> Dist {
     self.super_fold_rat(rat)
   }
 
-  fn super_fold_rat(&mut self, rat: &BigRational) -> Dist {
+  fn super_fold_rat(&mut self, rat: BigRational) -> Dist {
     Dist::Rat(rat.clone())
   }
 
-  fn fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
+  fn fold_bin(&mut self, d1: Dist, d2: Dist, op: BinOp) -> Dist {
     self.super_fold_bin(d1, d2, op)
   }
 
-  fn super_fold_bin(&mut self, d1: &Dist, d2: &Dist, op: BinOp) -> Dist {
+  fn super_fold_bin(&mut self, d1: Dist, d2: Dist, op: BinOp) -> Dist {
     Dist::Bin(box self.fold(d1), box self.fold(d2), op)
   }
 
-  fn fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
+  fn fold_integral(&mut self, x: Var, d: Dist) -> Dist {
     self.super_fold_integral(x, d)
   }
 
-  fn super_fold_integral(&mut self, x: Var, d: &Dist) -> Dist {
+  fn super_fold_integral(&mut self, x: Var, d: Dist) -> Dist {
     Dist::Integral(self.fold_var(x), box self.fold(d))
   }
 
-  fn fold_func(&mut self, x: Var, d: &Dist) -> Dist {
+  fn fold_func(&mut self, x: Var, d: Dist) -> Dist {
     self.super_fold_func(x, d)
   }
 
-  fn super_fold_func(&mut self, x: Var, d: &Dist) -> Dist {
+  fn super_fold_func(&mut self, x: Var, d: Dist) -> Dist {
     Dist::Func(self.fold_var(x), box self.fold(d))
   }
 
-  fn fold_distr(&mut self, x: Var, d: &Dist) -> Dist {
+  fn fold_distr(&mut self, x: Var, d: Dist) -> Dist {
     self.super_fold_distr(x, d)
   }
 
-  fn super_fold_distr(&mut self, x: Var, d: &Dist) -> Dist {
+  fn super_fold_distr(&mut self, x: Var, d: Dist) -> Dist {
     Dist::Distr(self.fold_var(x), box self.fold(d))
   }
 
-  fn fold_binder(&mut self, x: Var, d: &Dist) -> Dist {
+  fn fold_binder(&mut self, x: Var, d: Dist) -> Dist {
     self.super_fold_binder(x, d)
   }
 
@@ -278,7 +282,7 @@ pub trait Folder {
     None
   }
 
-  fn super_fold_binder(&mut self, x: Var, d: &Dist) -> Dist {
+  fn super_fold_binder(&mut self, x: Var, d: Dist) -> Dist {
     if let Some(bv) = self.bound_vars() {
       bv.bind(x);
     }
@@ -294,52 +298,52 @@ pub trait Folder {
     d2
   }
 
-  fn fold_delta(&mut self, d: &Dist, x: Var) -> Dist {
+  fn fold_delta(&mut self, d: Dist, x: Var) -> Dist {
     self.super_fold_delta(d, x)
   }
 
-  fn super_fold_delta(&mut self, d: &Dist, x: Var) -> Dist {
+  fn super_fold_delta(&mut self, d: Dist, x: Var) -> Dist {
     Dist::Delta(box self.fold(d), self.fold_var(x))
   }
 
-  fn fold_pdf(&mut self, d: &Dist, x: Var) -> Dist {
+  fn fold_pdf(&mut self, d: Dist, x: Var) -> Dist {
     self.super_fold_pdf(d, x)
   }
 
-  fn super_fold_pdf(&mut self, d: &Dist, x: Var) -> Dist {
+  fn super_fold_pdf(&mut self, d: Dist, x: Var) -> Dist {
     Dist::Pdf(box self.fold(d), self.fold_var(x))
   }
 
-  fn fold_app(&mut self, e1: &Dist, e2: &Dist) -> Dist {
+  fn fold_app(&mut self, e1: Dist, e2: Dist) -> Dist {
     self.super_fold_app(e1, e2)
   }
 
-  fn super_fold_app(&mut self, e1: &Dist, e2: &Dist) -> Dist {
+  fn super_fold_app(&mut self, e1: Dist, e2: Dist) -> Dist {
     Dist::App(box self.fold(e1), box self.fold(e2))
   }
 
-  fn fold_tuple(&mut self, es: &Vec<Dist>) -> Dist {
+  fn fold_tuple(&mut self, es: Vec<Dist>) -> Dist {
     self.super_fold_tuple(es)
   }
 
-  fn super_fold_tuple(&mut self, es: &Vec<Dist>) -> Dist {
-    Dist::Tuple(es.iter().map(|e| self.fold(e)).collect())
+  fn super_fold_tuple(&mut self, es: Vec<Dist>) -> Dist {
+    Dist::Tuple(es.into_iter().map(|e| self.fold(e)).collect())
   }
 
-  fn fold_proj(&mut self, d: &Dist, x: Var) -> Dist {
+  fn fold_proj(&mut self, d: Dist, x: Var) -> Dist {
     self.super_fold_proj(d, x)
   }
 
-  fn super_fold_proj(&mut self, d: &Dist, x: Var) -> Dist {
+  fn super_fold_proj(&mut self, d: Dist, x: Var) -> Dist {
     Dist::Proj(box self.fold(d), x)
   }
 
-  fn fold_record(&mut self, h: &HashMap<Var, Dist>) -> Dist {
+  fn fold_record(&mut self, h: HashMap<Var, Dist>) -> Dist {
     self.super_fold_record(h)
   }
 
-  fn super_fold_record(&mut self, h: &HashMap<Var, Dist>) -> Dist {
-    Dist::Record(h.iter().map(|(k, v)| (*k, self.fold(v))).collect())
+  fn super_fold_record(&mut self, h: HashMap<Var, Dist>) -> Dist {
+    Dist::Record(h.into_iter().map(|(k, v)| (k, self.fold(v))).collect())
   }
 
   fn fold_lebesgue(&mut self, x: Var) -> Dist {
@@ -350,39 +354,39 @@ pub trait Folder {
     Dist::Lebesgue(self.fold_var(x))
   }
 
-  fn fold_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) -> Dist {
+  fn fold_pred(&mut self, d1: Dist, d2: Dist, op: PredOp) -> Dist {
     self.super_fold_pred(d1, d2, op)
   }
 
-  fn super_fold_pred(&mut self, d1: &Dist, d2: &Dist, op: PredOp) -> Dist {
+  fn super_fold_pred(&mut self, d1: Dist, d2: Dist, op: PredOp) -> Dist {
     Dist::Pred(box self.fold(d1), box self.fold(d2), op)
   }
 
-  fn fold_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) -> Dist {
+  fn fold_rec_set(&mut self, d1: Dist, x: Var, d2: Dist) -> Dist {
     self.super_fold_rec_set(d1, x, d2)
   }
 
-  fn super_fold_rec_set(&mut self, d1: &Dist, x: Var, d2: &Dist) -> Dist {
+  fn super_fold_rec_set(&mut self, d1: Dist, x: Var, d2: Dist) -> Dist {
     Dist::RecSet(box self.fold(d1), x, box self.fold(d2))
   }
 
-  fn fold(&mut self, d: &Dist) -> Dist {
+  fn fold(&mut self, d: Dist) -> Dist {
     match d {
-      Dist::DVar(v) => self.fold_dvar(*v),
+      Dist::DVar(v) => self.fold_dvar(v),
       Dist::Rat(rat) => self.fold_rat(rat),
-      Dist::Bin(box d1, box d2, op) => self.fold_bin(d1, d2, *op),
+      Dist::Bin(box d1, box d2, op) => self.fold_bin(d1, d2, op),
       Dist::Integral(x, _) | Dist::Func(x, _) | Dist::Distr(x, _) => {
-        self.fold_binder(*x, d)
+        self.fold_binder(x, d)
       }
-      Dist::Delta(box d, x) => self.fold_delta(d, *x),
-      Dist::Pdf(box d, x) => self.fold_pdf(d, *x),
+      Dist::Delta(box d, x) => self.fold_delta(d, x),
+      Dist::Pdf(box d, x) => self.fold_pdf(d, x),
       Dist::App(box e1, box e2) => self.fold_app(e1, e2),
       Dist::Tuple(es) => self.fold_tuple(es),
-      Dist::Proj(d, x) => self.fold_proj(d, *x),
+      Dist::Proj(box d, x) => self.fold_proj(d, x),
       Dist::Record(h) => self.fold_record(h),
-      Dist::Lebesgue(x) => self.fold_lebesgue(*x),
-      Dist::Pred(box d1, box d2, op) => self.fold_pred(d1, d2, *op),
-      Dist::RecSet(box d1, x, box d2) => self.fold_rec_set(d1, *x, d2),
+      Dist::Lebesgue(x) => self.fold_lebesgue(x),
+      Dist::Pred(box d1, box d2, op) => self.fold_pred(d1, d2, op),
+      Dist::RecSet(box d1, x, box d2) => self.fold_rec_set(d1, x, d2),
       _ => todo!("{}", d),
     }
   }
@@ -431,7 +435,7 @@ impl Folder for Subst {
     }
   }
 
-  fn fold_binder(&mut self, x: Var, d: &Dist) -> Dist {
+  fn fold_binder(&mut self, x: Var, d: Dist) -> Dist {
     if x == self.src {
       d.clone()
     } else if self.fv.contains(&x) {
@@ -444,7 +448,7 @@ impl Folder for Subst {
         }
         _ => unreachable!(),
       };
-      self.super_fold_binder(xp, &d2)
+      self.super_fold_binder(xp, d2)
     } else {
       self.super_fold_binder(x, d)
     }
@@ -476,7 +480,7 @@ impl Dist {
   pub fn subst(&self, x: Var, d: Dist) -> Dist {
     let fv = d.free_vars();
     let mut pass = Subst { src: x, dst: d, fv };
-    pass.fold(self)
+    pass.fold(self.clone())
   }
 
   pub fn bin_many(mut args: Vec<Dist>, op: BinOp) -> Dist {

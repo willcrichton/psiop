@@ -259,11 +259,11 @@ mod test {
     }
 
     let tests = vec![
-      (is!(Rat), vec!["0", "1", "11"]),
+      (is!(Rat), vec!["0", "1", "11", "1/2"]),
       (is!(DVar), vec!["x", "x'", "α"]),
       (is!(Lebesgue), vec!["λ⟦x⟧"]),
       (is!(Delta), vec!["δ(σ)⟦σ'⟧"]),
-      (is!(Bin), vec!["1+2", "1-2", "1*2", "1·2", "1/2"]),
+      (is!(Bin), vec!["1+2", "1-2", "1*2", "1·2", "1÷2"]),
       (is!(Pred), vec!["[a=b]", "[a≠b]", "[a≤b]", "[a<b]"]),
       (is!(Pdf), vec!["x⟦x⟧", "x.a⟦x⟧"]),
       (is!(Proj), vec!["t.x", "t.0"]),
