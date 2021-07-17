@@ -32882,7 +32882,7 @@ var react_select_esm_default = index3;
 var import_lodash = __toModule(require_lodash());
 
 // wasm-deferred:/home/runner/work/psiop/psiop/site/pkg/psiop_wasm_bg.wasm
-var psiop_wasm_bg_default = "./psiop_wasm_bg-WOWIXGQG.wasm";
+var psiop_wasm_bg_default = "./psiop_wasm_bg-6PVXTDFL.wasm";
 
 // ../pkg/psiop_wasm_bg.js
 var lTextDecoder = typeof TextDecoder === "undefined" ? (0, module.require)("util").TextDecoder : TextDecoder;
