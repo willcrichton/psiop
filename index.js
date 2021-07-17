@@ -376,9 +376,9 @@ var require_react_development = __commonJS({
               case REACT_LAZY_TYPE: {
                 var lazyComponent = type;
                 var payload = lazyComponent._payload;
-                var init2 = lazyComponent._init;
+                var init4 = lazyComponent._init;
                 try {
-                  return getComponentName(init2(payload));
+                  return getComponentName(init4(payload));
                 } catch (x) {
                   return null;
                 }
@@ -1047,9 +1047,9 @@ var require_react_development = __commonJS({
           var dispatcher = resolveDispatcher();
           return dispatcher.useState(initialState);
         }
-        function useReducer(reducer, initialArg, init2) {
+        function useReducer(reducer, initialArg, init4) {
           var dispatcher = resolveDispatcher();
-          return dispatcher.useReducer(reducer, initialArg, init2);
+          return dispatcher.useReducer(reducer, initialArg, init4);
         }
         function useRef8(initialValue) {
           var dispatcher = resolveDispatcher();
@@ -1318,9 +1318,9 @@ var require_react_development = __commonJS({
               case REACT_LAZY_TYPE: {
                 var lazyComponent = type;
                 var payload = lazyComponent._payload;
-                var init2 = lazyComponent._init;
+                var init4 = lazyComponent._init;
                 try {
-                  return describeUnknownElementTypeFrameInDEV(init2(payload), source, ownerFn);
+                  return describeUnknownElementTypeFrameInDEV(init4(payload), source, ownerFn);
                 } catch (x) {
                 }
               }
@@ -3245,9 +3245,9 @@ var require_react_dom_development = __commonJS({
               case REACT_LAZY_TYPE: {
                 var lazyComponent = type;
                 var payload = lazyComponent._payload;
-                var init2 = lazyComponent._init;
+                var init4 = lazyComponent._init;
                 try {
-                  return describeUnknownElementTypeFrameInDEV(init2(payload), source, ownerFn);
+                  return describeUnknownElementTypeFrameInDEV(init4(payload), source, ownerFn);
                 } catch (x) {
                 }
               }
@@ -3347,9 +3347,9 @@ var require_react_dom_development = __commonJS({
               case REACT_LAZY_TYPE: {
                 var lazyComponent = type;
                 var payload = lazyComponent._payload;
-                var init2 = lazyComponent._init;
+                var init4 = lazyComponent._init;
                 try {
-                  return getComponentName(init2(payload));
+                  return getComponentName(init4(payload));
                 } catch (x) {
                   return null;
                 }
@@ -12845,11 +12845,11 @@ var require_react_dom_development = __commonJS({
         function basicStateReducer(state, action) {
           return typeof action === "function" ? action(state) : action;
         }
-        function mountReducer(reducer, initialArg, init2) {
+        function mountReducer(reducer, initialArg, init4) {
           var hook = mountWorkInProgressHook();
           var initialState;
-          if (init2 !== void 0) {
-            initialState = init2(initialArg);
+          if (init4 !== void 0) {
+            initialState = init4(initialArg);
           } else {
             initialState = initialArg;
           }
@@ -12863,7 +12863,7 @@ var require_react_dom_development = __commonJS({
           var dispatch = queue.dispatch = dispatchAction.bind(null, currentlyRenderingFiber$1, queue);
           return [hook.memoizedState, dispatch];
         }
-        function updateReducer(reducer, initialArg, init2) {
+        function updateReducer(reducer, initialArg, init4) {
           var hook = updateWorkInProgressHook();
           var queue = hook.queue;
           if (!(queue !== null)) {
@@ -12951,7 +12951,7 @@ var require_react_dom_development = __commonJS({
           var dispatch = queue.dispatch;
           return [hook.memoizedState, dispatch];
         }
-        function rerenderReducer(reducer, initialArg, init2) {
+        function rerenderReducer(reducer, initialArg, init4) {
           var hook = updateWorkInProgressHook();
           var queue = hook.queue;
           if (!(queue !== null)) {
@@ -13580,13 +13580,13 @@ var require_react_dom_development = __commonJS({
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
             },
-            useReducer: function(reducer, initialArg, init2) {
+            useReducer: function(reducer, initialArg, init4) {
               currentHookNameInDev = "useReducer";
               mountHookTypesDev();
               var prevDispatcher = ReactCurrentDispatcher$1.current;
               ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnMountInDEV;
               try {
-                return mountReducer(reducer, initialArg, init2);
+                return mountReducer(reducer, initialArg, init4);
               } finally {
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
@@ -13674,13 +13674,13 @@ var require_react_dom_development = __commonJS({
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
             },
-            useReducer: function(reducer, initialArg, init2) {
+            useReducer: function(reducer, initialArg, init4) {
               currentHookNameInDev = "useReducer";
               updateHookTypesDev();
               var prevDispatcher = ReactCurrentDispatcher$1.current;
               ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnMountInDEV;
               try {
-                return mountReducer(reducer, initialArg, init2);
+                return mountReducer(reducer, initialArg, init4);
               } finally {
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
@@ -13768,13 +13768,13 @@ var require_react_dom_development = __commonJS({
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
             },
-            useReducer: function(reducer, initialArg, init2) {
+            useReducer: function(reducer, initialArg, init4) {
               currentHookNameInDev = "useReducer";
               updateHookTypesDev();
               var prevDispatcher = ReactCurrentDispatcher$1.current;
               ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnUpdateInDEV;
               try {
-                return updateReducer(reducer, initialArg, init2);
+                return updateReducer(reducer, initialArg, init4);
               } finally {
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
@@ -13862,13 +13862,13 @@ var require_react_dom_development = __commonJS({
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
             },
-            useReducer: function(reducer, initialArg, init2) {
+            useReducer: function(reducer, initialArg, init4) {
               currentHookNameInDev = "useReducer";
               updateHookTypesDev();
               var prevDispatcher = ReactCurrentDispatcher$1.current;
               ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnRerenderInDEV;
               try {
-                return rerenderReducer(reducer, initialArg, init2);
+                return rerenderReducer(reducer, initialArg, init4);
               } finally {
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
@@ -13963,14 +13963,14 @@ var require_react_dom_development = __commonJS({
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
             },
-            useReducer: function(reducer, initialArg, init2) {
+            useReducer: function(reducer, initialArg, init4) {
               currentHookNameInDev = "useReducer";
               warnInvalidHookAccess();
               mountHookTypesDev();
               var prevDispatcher = ReactCurrentDispatcher$1.current;
               ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnMountInDEV;
               try {
-                return mountReducer(reducer, initialArg, init2);
+                return mountReducer(reducer, initialArg, init4);
               } finally {
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
@@ -14072,14 +14072,14 @@ var require_react_dom_development = __commonJS({
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
             },
-            useReducer: function(reducer, initialArg, init2) {
+            useReducer: function(reducer, initialArg, init4) {
               currentHookNameInDev = "useReducer";
               warnInvalidHookAccess();
               updateHookTypesDev();
               var prevDispatcher = ReactCurrentDispatcher$1.current;
               ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnUpdateInDEV;
               try {
-                return updateReducer(reducer, initialArg, init2);
+                return updateReducer(reducer, initialArg, init4);
               } finally {
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
@@ -14181,14 +14181,14 @@ var require_react_dom_development = __commonJS({
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
             },
-            useReducer: function(reducer, initialArg, init2) {
+            useReducer: function(reducer, initialArg, init4) {
               currentHookNameInDev = "useReducer";
               warnInvalidHookAccess();
               updateHookTypesDev();
               var prevDispatcher = ReactCurrentDispatcher$1.current;
               ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnUpdateInDEV;
               try {
-                return rerenderReducer(reducer, initialArg, init2);
+                return rerenderReducer(reducer, initialArg, init4);
               } finally {
                 ReactCurrentDispatcher$1.current = prevDispatcher;
               }
@@ -14402,9 +14402,9 @@ var require_react_dom_development = __commonJS({
               if (outerMemoType.$$typeof === REACT_LAZY_TYPE) {
                 var lazyComponent = outerMemoType;
                 var payload = lazyComponent._payload;
-                var init2 = lazyComponent._init;
+                var init4 = lazyComponent._init;
                 try {
-                  outerMemoType = init2(payload);
+                  outerMemoType = init4(payload);
                 } catch (x) {
                   outerMemoType = null;
                 }
@@ -14722,8 +14722,8 @@ var require_react_dom_development = __commonJS({
           var props = workInProgress2.pendingProps;
           var lazyComponent = elementType;
           var payload = lazyComponent._payload;
-          var init2 = lazyComponent._init;
-          var Component5 = init2(payload);
+          var init4 = lazyComponent._init;
+          var Component5 = init4(payload);
           workInProgress2.type = Component5;
           var resolvedTag = workInProgress2.tag = resolveLazyComponentTag(Component5);
           var resolvedProps = resolveDefaultProps(Component5, props);
@@ -32882,7 +32882,7 @@ var react_select_esm_default = index3;
 var import_lodash = __toModule(require_lodash());
 
 // wasm-deferred:/home/runner/work/psiop/psiop/site/pkg/psiop_wasm_bg.wasm
-var psiop_wasm_bg_default = "./psiop_wasm_bg-MNLU6ABD.wasm";
+var psiop_wasm_bg_default = "./psiop_wasm_bg-WOWIXGQG.wasm";
 
 // ../pkg/psiop_wasm_bg.js
 var lTextDecoder = typeof TextDecoder === "undefined" ? (0, module.require)("util").TextDecoder : TextDecoder;
@@ -32922,6 +32922,9 @@ function takeObject(idx) {
   const ret = getObject(idx);
   dropObject(idx);
   return ret;
+}
+function init3() {
+  init2();
 }
 var WASM_VECTOR_LEN = 0;
 var lTextEncoder = typeof TextEncoder === "undefined" ? (0, module.require)("util").TextEncoder : TextEncoder;
@@ -32991,6 +32994,27 @@ function __wbindgen_string_new(arg0, arg1) {
   var ret = getStringFromWasm0(arg0, arg1);
   return addHeapObject(ret);
 }
+function __wbg_new_59cb74e423758ede() {
+  var ret = new Error();
+  return addHeapObject(ret);
+}
+function __wbg_stack_558ba5917b466edd(arg0, arg1) {
+  var ret = getObject(arg1).stack;
+  var ptr0 = passStringToWasm0(ret, __wbindgen_malloc, __wbindgen_realloc);
+  var len0 = WASM_VECTOR_LEN;
+  getInt32Memory0()[arg0 / 4 + 1] = len0;
+  getInt32Memory0()[arg0 / 4 + 0] = ptr0;
+}
+function __wbg_error_4bb6c2a97407129a(arg0, arg1) {
+  try {
+    console.error(getStringFromWasm0(arg0, arg1));
+  } finally {
+    __wbindgen_free(arg0, arg1);
+  }
+}
+function __wbindgen_object_drop_ref(arg0) {
+  takeObject(arg0);
+}
 function __wbindgen_rethrow(arg0) {
   throw takeObject(arg0);
 }
@@ -32999,6 +33023,10 @@ function __wbindgen_rethrow(arg0) {
 var imports = {
   ["./psiop_wasm_bg.js"]: {
     __wbindgen_string_new,
+    __wbg_new_59cb74e423758ede,
+    __wbg_stack_558ba5917b466edd,
+    __wbg_error_4bb6c2a97407129a,
+    __wbindgen_object_drop_ref,
     __wbindgen_rethrow
   }
 };
@@ -33022,6 +33050,7 @@ async function loadWasm(module3, imports2) {
 }
 var { instance, module: module2 } = await loadWasm(psiop_wasm_bg_default, imports);
 var memory = instance.exports.memory;
+var init2 = instance.exports.init;
 var get_dist = instance.exports.get_dist;
 var __wbindgen_add_to_stack_pointer = instance.exports.__wbindgen_add_to_stack_pointer;
 var __wbindgen_malloc = instance.exports.__wbindgen_malloc;
@@ -33029,6 +33058,7 @@ var __wbindgen_realloc = instance.exports.__wbindgen_realloc;
 var __wbindgen_free = instance.exports.__wbindgen_free;
 
 // js/index.jsx
+init3();
 var EXAMPLES = [
   {
     label: "Cancer",
@@ -33039,6 +33069,23 @@ if has_cancer {
   p_test_positive := 1/10
 };
 test_positive := flip(p_test_positive)`
+  },
+  {
+    label: "Shazam",
+    program: `p := uniform(0, 1);
+if p \u2264 80/100 {
+  song := 1;
+  p_h := 5/10
+} else {
+  if p \u2264 95/100 {
+    song := 2;
+    p_h := 9/10
+  } else {
+    song := 3;
+    p_h := 3/10
+  }
+};
+observe(flip(p_h) = 1)`
   }
 ];
 var App = () => {
